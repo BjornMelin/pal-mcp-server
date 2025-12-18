@@ -39,11 +39,11 @@ A straightforward rubric that mirrors typical provider tiers:
 
 | Intelligence | Guidance |
 |--------------|----------|
-| 18–19 | Frontier reasoning models (Gemini 3.0 Pro, Gemini 2.5 Pro, GPT‑5.1 Codex, GPT‑5.1, GPT‑5, GPT-5-Pro) |
-| 15–17 | Strong general models with large context (Grok-4, Grok-4.1 Fast, Grok 4 Fast, O3 Pro, DeepSeek R1) |
-| 12–14 | Balanced assistants (Grok Code Fast 1, Grok-4.1 Fast Non-Reasoning, Grok 4 Fast Non-Reasoning, Claude Opus/Sonnet, Mistral Large) |
-| 9–11  | Fast distillations (Grok-3 Fast, Gemini Flash, GPT-5 Mini, Mistral medium) |
-| 6–8   | Local or efficiency-focused models (Llama 3 70B, Claude Haiku) |
+| 18–19 | Frontier reasoning models (gemini-3.0-pro, gemini-2.5-pro, gpt-5.1-codex, gpt-5.1, gpt-5, gpt-5-pro) |
+| 15–17 | Strong general models with large context (grok-4, grok-4-1-fast, grok-4-fast, o3-pro, deepseek-r1) |
+| 12–14 | Balanced assistants (grok-code-fast-1, grok-4-1-fast-non-reasoning, grok-4-fast-non-reasoning, claude-opus, claude-sonnet, mistral-large) |
+| 9–11  | Fast distillations (grok-3-fast, gemini-flash, gpt-5-mini, mistral-medium) |
+| 6–8   | Local or efficiency-focused models (llama-3-70b, claude-haiku) |
 | ≤5    | Experimental/lightweight models |
 
 Record the reasoning for your scores so future updates stay consistent.

@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from tools.models import ToolModelCategory
 
 from .openai_compatible import OpenAICompatibleProvider
+from .provider_utils import find_first_available_model
 from .registries.openai import OpenAIModelRegistry
 from .registry_provider_mixin import RegistryBackedProviderMixin
 from .shared import ModelCapabilities, ProviderType
@@ -105,18 +106,10 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
         if not allowed_models:
             return None
 
-        # Helper to find first available from preference list
-        def find_first(preferences: list[str]) -> Optional[str]:
-            """Return first available model from preference list."""
-            for model in preferences:
-                if model in allowed_models:
-                    return model
-            return None
-
         if category == ToolModelCategory.EXTENDED_REASONING:
             # Prefer models with extended thinking support
             # GPT-5.1 Codex first for coding tasks
-            preferred = find_first(
+            preferred = find_first_available_model(
                 [
                     "gpt-5.1-codex",
                     "gpt-5.1",
@@ -125,14 +118,15 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
                     "o3-pro",
                     "gpt-5",
                     "o3",
-                ]
+                ],
+                allowed_models,
             )
             return preferred if preferred else allowed_models[0]
 
         elif category == ToolModelCategory.FAST_RESPONSE:
             # Prefer fast, cost-efficient models
             # GPT-5.1 models for speed, GPT-5.1-Codex after (premium pricing but cached)
-            preferred = find_first(
+            preferred = find_first_available_model(
                 [
                     "gpt-5.1",
                     "gpt-5.1-codex-mini",
@@ -141,14 +135,15 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
                     "gpt-5-codex",
                     "o4-mini",
                     "o3-mini",
-                ]
+                ],
+                allowed_models,
             )
             return preferred if preferred else allowed_models[0]
 
         else:  # BALANCED or default
             # Prefer balanced performance/cost models
             # Include GPT-5.1 family for latest capabilities
-            preferred = find_first(
+            preferred = find_first_available_model(
                 [
                     "gpt-5.1",
                     "gpt-5.1-codex",
@@ -158,7 +153,8 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
                     "gpt-5-mini",
                     "o4-mini",
                     "o3-mini",
-                ]
+                ],
+                allowed_models,
             )
             return preferred if preferred else allowed_models[0]
 
