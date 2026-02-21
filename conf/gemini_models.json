@@ -58,7 +58,7 @@
         "gemini-flash"
       ],
       "intelligence_score": 17,
-      "description": "Pro-level reasoning with Flash latency (1M context) - Everyday tasks, agentic coding, multimodal understanding",
+      "description": "Pro-level reasoning with Flash latency (1M context) - Everyday tasks, complex analysis, multimodal understanding",
       "context_window": 1048576,
       "max_output_tokens": 65536,
       "max_thinking_tokens": 32768,

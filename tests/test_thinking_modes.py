@@ -459,13 +459,13 @@ class TestThinkingModes:
 class TestGeminiThinkingConfiguration:
     """Test Gemini-specific thinking configuration.
 
-    Note: The current Google SDK (google-genai) only supports thinkingBudget (integer),
-    NOT thinkingLevel (string). Both Gemini 2.x and 3.x models use thinkingBudget
-    with the current SDK. The SDK may add thinkingLevel support in the future.
+    Note: Gemini API docs describe thinkingLevel for Gemini 3 and thinkingBudget
+    for Gemini 2.5. The current provider implementation maps PAL thinking modes
+    to thinking_budget for both model families.
     """
 
     def test_gemini_3_uses_thinking_budget(self):
-        """Verify Gemini 3 models use thinkingBudget parameter (integer) with current SDK"""
+        """Verify provider currently uses thinkingBudget for Gemini 3 models."""
         from unittest.mock import MagicMock, patch
 
         from providers.gemini import GeminiModelProvider
@@ -494,10 +494,8 @@ class TestGeminiThinkingConfiguration:
             call_kwargs = mock_client.models.generate_content.call_args
             config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
 
-            # Verify thinking_config uses thinking_budget (integer)
-            # Current SDK does NOT support thinking_level (string)
+            # Verify provider writes an integer thinking_budget.
             assert config.thinking_config is not None
-            assert hasattr(config.thinking_config, "thinking_budget")
             capability_map = provider.get_all_model_capabilities()
             max_thinking_tokens = capability_map["gemini-3-flash-preview"].max_thinking_tokens
             expected_budget = int(max_thinking_tokens * GeminiModelProvider.THINKING_BUDGETS["high"])
@@ -535,7 +533,6 @@ class TestGeminiThinkingConfiguration:
 
             # Verify thinking_config uses thinking_budget (integer), not thinking_level
             assert config.thinking_config is not None
-            assert hasattr(config.thinking_config, "thinking_budget")
             capability_map = provider.get_all_model_capabilities()
             max_thinking_tokens = capability_map["gemini-2.5-flash"].max_thinking_tokens
             expected_budget = int(max_thinking_tokens * GeminiModelProvider.THINKING_BUDGETS["high"])
@@ -569,7 +566,6 @@ class TestGeminiThinkingConfiguration:
 
             # 'max' = 100% of model max_thinking_tokens.
             assert config.thinking_config is not None
-            assert hasattr(config.thinking_config, "thinking_budget")
             capability_map = provider.get_all_model_capabilities()
             max_thinking_tokens = capability_map["gemini-3-flash-preview"].max_thinking_tokens
             expected_budget = int(max_thinking_tokens * GeminiModelProvider.THINKING_BUDGETS["max"])

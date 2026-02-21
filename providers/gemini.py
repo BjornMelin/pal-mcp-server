@@ -194,8 +194,9 @@ class GeminiModelProvider(RegistryBackedProviderMixin, ModelProvider):
 
         # Add thinking configuration for models that support it
         if capabilities.supports_extended_thinking and effective_thinking_mode in self.THINKING_BUDGETS:
-            # Current SDK accepts an integer thinking_budget for models that support extended thinking.
-            # If the SDK adds alternative thinking controls in the future, this logic may need updating.
+            # Current provider behavior maps PAL thinking modes to an integer thinking_budget.
+            # TODO: For Gemini 3 models, switch to thinking_level (minimal/low/medium/high)
+            # once this provider fully adopts google-genai ThinkingConfig.thinking_level.
             model_config = capability_map.get(resolved_model_name)
             if model_config and model_config.max_thinking_tokens > 0:
                 max_thinking_tokens = model_config.max_thinking_tokens
