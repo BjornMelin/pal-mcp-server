@@ -481,7 +481,7 @@ class GeminiModelProvider(RegistryBackedProviderMixin, ModelProvider):
             # Sort by: (is_canonical, intelligence_score, name) descending
             canonical_names = set(self.list_models(include_aliases=False, respect_restrictions=False))
 
-            def sort_key(m: str) -> tuple:
+            def sort_key(m: str) -> tuple[bool, int, str]:
                 is_canonical = m in canonical_names
                 score = capability_map[m].intelligence_score if m in capability_map else 0
                 return (is_canonical, score, m)
