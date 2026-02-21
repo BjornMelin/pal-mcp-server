@@ -9,6 +9,7 @@ Tests that verify OpenRouter functionality including:
 - Error handling when models are not available
 """
 
+
 from .base_test import BaseSimulatorTest
 
 
