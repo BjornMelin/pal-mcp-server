@@ -175,9 +175,7 @@ class TestO3TemperatureParameterFixSimple:
     @patch("utils.model_restrictions.get_restriction_service")
     @patch("providers.openai_compatible.logging")
     @patch("providers.openai_compatible.OpenAI")
-    def test_logs_ignored_thinking_mode_parameter(
-        self, mock_openai_class, mock_logging, mock_restriction_service
-    ):
+    def test_logs_ignored_thinking_mode_parameter(self, mock_openai_class, mock_logging, mock_restriction_service):
         """Test that unsupported thinking_mode kwargs are logged instead of being silently dropped."""
         # Mock restriction service to allow all models
         mock_service = Mock()
@@ -214,7 +212,9 @@ class TestO3TemperatureParameterFixSimple:
         )
 
         ignored_warning_calls = [
-            call for call in mock_logging.warning.call_args_list if "ignored unsupported generate_content kwargs" in call[0][0]
+            call
+            for call in mock_logging.warning.call_args_list
+            if "ignored unsupported generate_content kwargs" in call[0][0]
         ]
         assert ignored_warning_calls, "Expected warning when thinking_mode is ignored by OpenAI-compatible providers"
         assert "thinking_mode" in ignored_warning_calls[0][0][3]

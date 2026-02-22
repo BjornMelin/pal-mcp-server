@@ -82,7 +82,7 @@ class TestOpenRouterProvider:
         assert provider._resolve_model_name("opus") == "anthropic/claude-opus-4.5"
         assert provider._resolve_model_name("opus4.5") == "anthropic/claude-opus-4.5"
         assert provider._resolve_model_name("opus4.1") == "anthropic/claude-opus-4.1"
-        assert provider._resolve_model_name("sonnet") == "anthropic/claude-sonnet-4.5"
+        assert provider._resolve_model_name("sonnet") == "anthropic/claude-sonnet-4.6"
         assert provider._resolve_model_name("sonnet4.1") == "anthropic/claude-sonnet-4.1"
         assert provider._resolve_model_name("o3") == "openai/o3"
         assert provider._resolve_model_name("o3-mini") == "openai/o3-mini"
@@ -99,7 +99,7 @@ class TestOpenRouterProvider:
 
         # Test case-insensitive
         assert provider._resolve_model_name("OPUS") == "anthropic/claude-opus-4.5"
-        assert provider._resolve_model_name("SONNET") == "anthropic/claude-sonnet-4.5"
+        assert provider._resolve_model_name("SONNET") == "anthropic/claude-sonnet-4.6"
         assert provider._resolve_model_name("O3") == "openai/o3"
         assert provider._resolve_model_name("Mistral") == "mistralai/mistral-large-2411"
 
@@ -338,17 +338,18 @@ class TestOpenRouterRegistry:
         assert caps is None
 
     def test_multiple_aliases_same_model(self):
-        """Test multiple aliases pointing to same model."""
+        """Test Sonnet aliases resolve to the correct canonical versions."""
         from providers.registries.openrouter import OpenRouterModelRegistry
 
         registry = OpenRouterModelRegistry()
 
-        # All these should resolve to Claude Sonnet 4.5
-        sonnet_45_aliases = ["sonnet", "sonnet4.5"]
-        for alias in sonnet_45_aliases:
-            config = registry.resolve(alias)
-            assert config is not None
-            assert config.model_name == "anthropic/claude-sonnet-4.5"
+        config = registry.resolve("sonnet")
+        assert config is not None
+        assert config.model_name == "anthropic/claude-sonnet-4.6"
+
+        config = registry.resolve("sonnet4.5")
+        assert config is not None
+        assert config.model_name == "anthropic/claude-sonnet-4.5"
 
         # Test Sonnet 4.1 alias
         config = registry.resolve("sonnet4.1")

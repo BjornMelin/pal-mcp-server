@@ -3,8 +3,8 @@ Test to reproduce and fix the OpenRouter model name resolution bug.
 
 This test specifically targets the bug where:
 1. User specifies "gemini" in consensus tool
-2. System incorrectly resolves to "gemini-2.5-pro" instead of "google/gemini-2.5-pro"
-3. OpenRouter API returns "gemini-2.5-pro is not a valid model ID"
+2. System incorrectly resolves to a non-provider-prefixed model name
+3. OpenRouter API rejects the malformed model ID
 """
 
 from unittest.mock import Mock, patch
@@ -22,21 +22,21 @@ class TestModelResolutionBug:
         self.consensus_tool = ConsensusTool()
 
     def test_openrouter_registry_resolves_gemini_alias(self):
-        """Test that OpenRouter registry properly resolves 'gemini' to 'google/gemini-3-pro-preview'."""
+        """Test that OpenRouter registry resolves 'gemini' to the canonical pro model."""
         # Test the registry directly
         provider = OpenRouterProvider("test_key")
 
         # Test alias resolution
         resolved_model_name = provider._resolve_model_name("gemini")
         assert (
-            resolved_model_name == "google/gemini-3-pro-preview"
-        ), f"Expected 'google/gemini-3-pro-preview', got '{resolved_model_name}'"
+            resolved_model_name == "google/gemini-3.1-pro-preview"
+        ), f"Expected 'google/gemini-3.1-pro-preview', got '{resolved_model_name}'"
 
         # Test that it also works with 'pro' alias
         resolved_pro = provider._resolve_model_name("pro")
         assert (
-            resolved_pro == "google/gemini-3-pro-preview"
-        ), f"Expected 'google/gemini-3-pro-preview', got '{resolved_pro}'"
+            resolved_pro == "google/gemini-3.1-pro-preview"
+        ), f"Expected 'google/gemini-3.1-pro-preview', got '{resolved_pro}'"
 
     # DELETED: test_provider_registry_returns_openrouter_for_gemini
     # This test had a flawed mock setup - it mocked get_provider() but called get_provider_for_model().
@@ -95,20 +95,21 @@ class TestModelResolutionBug:
             assert result["model"] == "gemini"
             assert result["status"] == "success"
 
-    def test_bug_reproduction_with_malformed_model_name(self):
-        """Test what happens when 'gemini-2.5-pro' (malformed) is passed to OpenRouter."""
+    def test_legacy_gemini_name_resolves_to_canonical_openrouter_id(self):
+        """Legacy Gemini IDs should resolve to canonical provider-prefixed OpenRouter names."""
         provider = OpenRouterProvider("test_key")
 
-        # This should NOT resolve because 'gemini-2.5-pro' is not in the OpenRouter registry
+        # This should resolve to the canonical provider-prefixed identifier.
         resolved = provider._resolve_model_name("gemini-2.5-pro")
 
-        # The bug: this returns "gemini-2.5-pro" as-is instead of resolving to proper name
-        # This is what causes the OpenRouter API to fail
-        assert resolved == "gemini-2.5-pro", f"Expected fallback to 'gemini-2.5-pro', got '{resolved}'"
+        assert (
+            resolved == "google/gemini-2.5-pro"
+        ), f"Expected canonical resolution to 'google/gemini-2.5-pro', got '{resolved}'"
 
-        # Verify the registry doesn't have this malformed name
+        # Verify the registry has the canonical model entry.
         config = provider._registry.resolve("gemini-2.5-pro")
-        assert config is None, "Registry should not contain 'gemini-2.5-pro' - only 'google/gemini-2.5-pro'"
+        assert config is not None, "Registry should resolve 'gemini-2.5-pro' to 'google/gemini-2.5-pro'"
+        assert config.model_name == "google/gemini-2.5-pro"
 
 
 if __name__ == "__main__":
@@ -120,9 +121,9 @@ if __name__ == "__main__":
     test.test_openrouter_registry_resolves_gemini_alias()
     print("✅ Registry resolves aliases correctly")
 
-    print("\nTesting malformed model name handling...")
-    test.test_bug_reproduction_with_malformed_model_name()
-    print("✅ Confirmed: malformed names fall through as-is")
+    print("\nTesting legacy Gemini OpenRouter ID handling...")
+    test.test_legacy_gemini_name_resolves_to_canonical_openrouter_id()
+    print("✅ Confirmed: legacy IDs resolve to canonical provider-prefixed names")
 
     print("\nConsensus tool test completed successfully.")
 

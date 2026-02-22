@@ -66,7 +66,7 @@ class TestListModelsTool:
             # Check Gemini shows as configured
             assert "Google Gemini ✅" in content
             assert "`flash` → `gemini-3-flash-preview`" in content  # flash now points to Gemini 3 Flash
-            assert "`pro` → `gemini-3-pro-preview`" in content
+            assert "`pro` → `gemini-3.1-pro-preview`" in content
             assert "1M context" in content
             assert "Supports structured code generation" in content
 
@@ -142,6 +142,8 @@ class TestListModelsTool:
 
         response = json.loads(result[0].text)
         content = response["content"]
+
+        assert "## Catalog Snapshot" in content
 
         # Check for usage tips
         assert "**Usage Tips**:" in content

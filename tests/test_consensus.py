@@ -344,7 +344,7 @@ class TestConsensusTool:
         - Method expected model_context parameter but got None (default value)
         - Runtime validation in base_tool.py threw RuntimeError
         """
-        from unittest.mock import AsyncMock, Mock, patch
+        from unittest.mock import Mock, patch
 
         from utils.model_context import ModelContext
 
@@ -368,7 +368,7 @@ class TestConsensusTool:
 
             # Setup mocks
             mock_provider = Mock()
-            mock_provider.generate_content = AsyncMock(return_value={"response": "test response"})
+            mock_provider.generate_content = Mock(return_value={"response": "test response"})
             mock_get_provider.return_value = mock_provider
             mock_prepare_files.return_value = ("file content", [])
             mock_get_prompt.return_value = "system prompt"

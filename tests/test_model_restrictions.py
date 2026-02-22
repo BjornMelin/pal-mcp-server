@@ -73,7 +73,7 @@ class TestModelRestrictionService:
                 # Check Google models
                 assert service.is_allowed(ProviderType.GOOGLE, "flash")
                 assert service.is_allowed(ProviderType.GOOGLE, "pro")
-                assert service.is_allowed(ProviderType.GOOGLE, "gemini-3-pro-preview")
+                assert service.is_allowed(ProviderType.GOOGLE, "gemini-3.1-pro-preview")
 
     def test_case_insensitive_and_whitespace_handling(self):
         """Test that model names are case-insensitive and whitespace is trimmed."""
@@ -143,7 +143,7 @@ class TestModelRestrictionService:
 
             # Google should allow both models via shorthands
             assert service.is_allowed(ProviderType.GOOGLE, "gemini-2.5-flash", "flash")
-            assert service.is_allowed(ProviderType.GOOGLE, "gemini-2.5-pro", "pro")
+            assert service.is_allowed(ProviderType.GOOGLE, "gemini-3.1-pro-preview", "pro")
 
             # Also test that full names work when specified in restrictions
             assert service.is_allowed(ProviderType.OPENAI, "o3-mini", "o3mini")  # Even with shorthand
@@ -457,13 +457,8 @@ class TestRegistryIntegration:
         # Clear registry cache
         ModelProviderRegistry.clear_cache()
 
-        # Get available models with restrictions
-        # This test documents current behavior - get_available_models doesn't handle aliases
-        ModelProviderRegistry.get_available_models(respect_restrictions=True)
-
-        # Currently, this will be empty because get_available_models doesn't
-        # recognize that "mini" allows "o4-mini"
-        # This is a known limitation that should be documented
+        available_models = ModelProviderRegistry.get_available_models(respect_restrictions=True)
+        assert isinstance(available_models, dict)
 
     @patch("providers.registry.ModelProviderRegistry.get_provider")
     def test_get_available_models_respects_restrictions(self, mock_get_provider):
