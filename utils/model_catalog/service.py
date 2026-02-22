@@ -151,7 +151,8 @@ def _write_json_if_changed(path: Path, payload: dict[str, Any]) -> tuple[bool, b
 
             if isinstance(existing_payload, dict):
                 if _normalize_models_for_diff(existing_payload) == next_models:
-                    return True, False
+                    if existing_payload.get("_GENERATED") == payload.get("_GENERATED"):
+                        return True, False
             elif existing == serialized:
                 return True, False
 
@@ -229,7 +230,11 @@ def _notify_provider_registry_reload(changed_providers: list[str]) -> None:
 
 
 def get_model_catalog_status() -> dict[str, Any]:
-    """Return runtime status of the model catalog control-plane."""
+    """Return runtime status of the model catalog control-plane.
+
+    Returns:
+        Runtime status snapshot for catalog refresh and storage behavior.
+    """
 
     status = _snapshot_status()
     status.refresh_task_running = bool(_REFRESH_TASK and not _REFRESH_TASK.done())
@@ -241,7 +246,15 @@ def refresh_model_catalog_once(
     *,
     enable_discovery: bool | None = None,
 ) -> dict[str, Any]:
-    """Build merged catalog manifests and inject runtime config path overrides."""
+    """Build merged catalog manifests and inject runtime config path overrides.
+
+    Args:
+        reason: Label describing why the refresh was triggered.
+        enable_discovery: Optional runtime override for discovery behavior.
+
+    Returns:
+        Runtime status snapshot after refresh attempt.
+    """
 
     started_at = datetime.now(timezone.utc)
 
@@ -419,7 +432,11 @@ def refresh_model_catalog_once(
 
 
 def initialize_model_catalog() -> dict[str, Any]:
-    """Initialize the model catalog once at startup."""
+    """Initialize the model catalog once at startup.
+
+    Returns:
+        Runtime status snapshot after startup initialization.
+    """
 
     return refresh_model_catalog_once(reason="startup", enable_discovery=False)
 
@@ -443,7 +460,11 @@ async def _periodic_refresh_loop(interval_seconds: int) -> None:
 
 
 async def start_model_catalog_refresh_task() -> None:
-    """Start periodic model-catalog refresh task if enabled."""
+    """Start periodic model-catalog refresh task if enabled.
+
+    Returns:
+        None.
+    """
 
     global _REFRESH_TASK
 
@@ -477,7 +498,11 @@ async def start_model_catalog_refresh_task() -> None:
 
 
 async def stop_model_catalog_refresh_task() -> None:
-    """Stop periodic model-catalog refresh task."""
+    """Stop periodic model-catalog refresh task.
+
+    Returns:
+        None.
+    """
 
     global _REFRESH_TASK
 

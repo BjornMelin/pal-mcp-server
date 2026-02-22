@@ -124,20 +124,18 @@ def mock_provider_availability(request, monkeypatch):
     # Ensure providers are registered (in case other tests cleared the registry)
     from providers.shared import ProviderType
 
-    registry = ModelProviderRegistry()
-
-    if registry._providers.get(ProviderType.GOOGLE) != GeminiModelProvider:
+    if not ModelProviderRegistry.is_provider_registered(ProviderType.GOOGLE, GeminiModelProvider):
         ModelProviderRegistry.register_provider(ProviderType.GOOGLE, GeminiModelProvider)
-    if registry._providers.get(ProviderType.OPENAI) != OpenAIModelProvider:
+    if not ModelProviderRegistry.is_provider_registered(ProviderType.OPENAI, OpenAIModelProvider):
         ModelProviderRegistry.register_provider(ProviderType.OPENAI, OpenAIModelProvider)
-    if registry._providers.get(ProviderType.XAI) != XAIModelProvider:
+    if not ModelProviderRegistry.is_provider_registered(ProviderType.XAI, XAIModelProvider):
         ModelProviderRegistry.register_provider(ProviderType.XAI, XAIModelProvider)
 
     # Ensure CUSTOM provider is registered if needed for integration tests
     if (
         os.getenv("CUSTOM_API_URL")
         and "test_prompt_regression.py" in os.getenv("PYTEST_CURRENT_TEST", "")
-        and ProviderType.CUSTOM not in registry._providers
+        and not ModelProviderRegistry.is_provider_registered(ProviderType.CUSTOM)
     ):
         from providers.custom import CustomProvider
 

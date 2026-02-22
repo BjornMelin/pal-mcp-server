@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import json
 
+import pytest
+
 import utils.env as env_config
 import utils.model_restrictions as model_restrictions
 from providers.openrouter import OpenRouterProvider
@@ -57,7 +59,6 @@ def test_auto_fallback_skips_quarantined_models(tmp_path, monkeypatch) -> None:
         ]:
             monkeypatch.delenv(key, raising=False)
 
-        OpenRouterProvider._registry = None
         OpenRouterProvider.reload_registry()
 
         ModelProviderRegistry.reset_for_testing()
@@ -68,7 +69,7 @@ def test_auto_fallback_skips_quarantined_models(tmp_path, monkeypatch) -> None:
         assert selected in {"openai/gpt-safe", "gptsafe"}
         assert selected not in {"openai/gpt-quarantined", "gptq"}
     finally:
-        OpenRouterProvider._registry = None
+        OpenRouterProvider.reload_registry()
         ModelProviderRegistry.reset_for_testing()
         env_config.reload_env()
 
@@ -112,7 +113,6 @@ def test_available_models_exclude_quarantined_entries(tmp_path, monkeypatch) -> 
         ]:
             monkeypatch.delenv(key, raising=False)
 
-        OpenRouterProvider._registry = None
         OpenRouterProvider.reload_registry()
 
         ModelProviderRegistry.reset_for_testing()
@@ -124,7 +124,7 @@ def test_available_models_exclude_quarantined_entries(tmp_path, monkeypatch) -> 
         assert "gptq" not in available_models
         assert available_models == {}
     finally:
-        OpenRouterProvider._registry = None
+        OpenRouterProvider.reload_registry()
         ModelProviderRegistry.reset_for_testing()
         env_config.reload_env()
 
@@ -172,7 +172,6 @@ def test_auto_mode_startup_fails_when_only_quarantined_models_remain(tmp_path, m
         ]:
             monkeypatch.delenv(key, raising=False)
 
-        OpenRouterProvider._registry = None
         OpenRouterProvider.reload_registry()
 
         import config
@@ -188,12 +187,12 @@ def test_auto_mode_startup_fails_when_only_quarantined_models_remain(tmp_path, m
 
         try:
             server.configure_providers()
-            assert False, "Expected auto-mode startup validation to fail when only quarantined models are available"
+            pytest.fail("Expected auto-mode startup validation to fail when only quarantined models are available")
         except ValueError as exc:
             message = str(exc)
             assert "No models available for auto mode due to restrictions" in message
     finally:
-        OpenRouterProvider._registry = None
+        OpenRouterProvider.reload_registry()
         model_restrictions._restriction_service = None
         ModelProviderRegistry.reset_for_testing()
         env_config.reload_env()

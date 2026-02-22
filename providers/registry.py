@@ -238,6 +238,28 @@ class ModelProviderRegistry:
         return list(instance._providers.keys())
 
     @classmethod
+    def is_provider_registered(
+        cls,
+        provider_type: ProviderType,
+        provider_class: type[ModelProvider] | None = None,
+    ) -> bool:
+        """Return whether a provider is registered.
+
+        Args:
+            provider_type: Provider type to check.
+            provider_class: Optional concrete provider class to compare against.
+
+        Returns:
+            True when the provider is registered (and matches the class if
+            provided), False otherwise.
+        """
+        instance = cls()
+        registered = instance._providers.get(provider_type)
+        if provider_class is None:
+            return registered is not None
+        return registered == provider_class
+
+    @classmethod
     def get_available_models(cls, respect_restrictions: bool = True) -> dict[str, ProviderType]:
         """Get mapping of all available models to their providers.
 
@@ -580,8 +602,7 @@ class ModelProviderRegistry:
             if not provider:
                 continue
             try:
-                if hasattr(provider, "close"):
-                    provider.close()
+                provider.close()
             except Exception:  # pragma: no cover - defensive cleanup
                 logging.debug("Ignoring provider close failure for %s", provider_type.value)
 

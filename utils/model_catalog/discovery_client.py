@@ -91,6 +91,18 @@ def _openrouter_counterpart(provider: str, model_name: str) -> str | None:
 
 
 def discover_openai(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
+    """Discover OpenAI models for catalog enrichment.
+
+    Args:
+        api_key: OpenAI API key.
+        timeout_ms: Request timeout in milliseconds.
+
+    Returns:
+        List of normalized OpenAI model entries.
+
+    Raises:
+        Exception: Propagates transport or parsing failures from the API call.
+    """
     now = _now_utc()
     payload = _fetch_json(
         OPENAI_MODELS_URL,
@@ -122,6 +134,18 @@ def discover_openai(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
 
 
 def discover_gemini(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
+    """Discover Gemini models for catalog enrichment.
+
+    Args:
+        api_key: Gemini API key.
+        timeout_ms: Request timeout in milliseconds.
+
+    Returns:
+        List of normalized Gemini model entries.
+
+    Raises:
+        Exception: Propagates transport or parsing failures from the API call.
+    """
     now = _now_utc()
     query = urllib.parse.urlencode({"key": api_key})
     payload = _fetch_json(f"{GEMINI_MODELS_URL}?{query}", timeout_ms)
@@ -160,6 +184,18 @@ def discover_gemini(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
 
 
 def discover_xai(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
+    """Discover X.AI models for catalog enrichment.
+
+    Args:
+        api_key: X.AI API key.
+        timeout_ms: Request timeout in milliseconds.
+
+    Returns:
+        List of normalized X.AI model entries.
+
+    Raises:
+        Exception: Propagates transport or parsing failures from the API call.
+    """
     now = _now_utc()
     payload = _fetch_json(
         XAI_MODELS_URL,
@@ -189,6 +225,18 @@ def discover_xai(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
 
 
 def discover_anthropic(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
+    """Discover Anthropic models and map them to OpenRouter-style IDs.
+
+    Args:
+        api_key: Anthropic API key.
+        timeout_ms: Request timeout in milliseconds.
+
+    Returns:
+        List of normalized entries using OpenRouter-compatible model names.
+
+    Raises:
+        Exception: Propagates transport or parsing failures from the API call.
+    """
     now = _now_utc()
     payload = _fetch_json(
         ANTHROPIC_MODELS_URL,
@@ -228,6 +276,18 @@ def discover_anthropic(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
 
 
 def discover_openrouter(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
+    """Discover OpenRouter models for catalog enrichment.
+
+    Args:
+        api_key: OpenRouter API key.
+        timeout_ms: Request timeout in milliseconds.
+
+    Returns:
+        List of normalized OpenRouter model entries.
+
+    Raises:
+        Exception: Propagates transport or parsing failures from the API call.
+    """
     now = _now_utc()
     payload = _fetch_json(
         OPENROUTER_MODELS_URL,
@@ -271,9 +331,21 @@ def discover_openrouter(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
 
 
 def discover_vercel_gateway(api_key: str, timeout_ms: int) -> list[dict[str, Any]]:
+    """Discover Vercel AI Gateway models for catalog enrichment.
+
+    Args:
+        api_key: Vercel AI Gateway API key.
+        timeout_ms: Request timeout in milliseconds.
+
+    Returns:
+        List of normalized Vercel Gateway model entries.
+
+    Raises:
+        Exception: Propagates transport or parsing failures from the API call.
+    """
     now = _now_utc()
-    base_url = (
-        get_env("VERCEL_AI_GATEWAY_BASE_URL", "https://ai-gateway.vercel.sh/v1") or "https://ai-gateway.vercel.sh/v1"
+    base_url = get_env("VERCEL_AI_GATEWAY_BASE_URL", "https://ai-gateway.vercel.sh/v1") or (
+        "https://ai-gateway.vercel.sh/v1"
     )
     endpoint = f"{base_url.rstrip('/')}/models"
 
@@ -314,8 +386,11 @@ def discover_vercel_gateway(api_key: str, timeout_ms: int) -> list[dict[str, Any
 def discover_all(timeout_ms: int) -> tuple[list[dict[str, Any]], list[str]]:
     """Discover models from configured providers.
 
+    Args:
+        timeout_ms: Request timeout in milliseconds for each provider API call.
+
     Returns:
-        (entries, errors)
+        Tuple of ``(entries, errors)`` for all configured providers.
     """
 
     discovered: list[dict[str, Any]] = []

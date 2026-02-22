@@ -65,7 +65,7 @@ class ModelRestrictionService:
         self._alias_resolution_provider_cache: dict[ProviderType, Any] = {}
         self._load_from_env()
 
-    def _get_alias_resolution_provider(self, provider_type: ProviderType):
+    def _get_alias_resolution_provider(self, provider_type: ProviderType) -> Optional[Any]:
         """Return a provider instance suitable for alias-to-canonical resolution."""
 
         try:
@@ -151,7 +151,15 @@ class ModelRestrictionService:
                 logger.debug(f"{env_var} contains only whitespace - all {provider_type.value} models allowed")
 
     def invalidate_alias_resolution_cache(self, provider_types: Optional[set[ProviderType]] = None) -> None:
-        """Clear cached alias resolutions so future checks use fresh provider metadata."""
+        """Clear cached alias resolutions so future checks use fresh provider metadata.
+
+        Args:
+            provider_types: Optional set of provider types to clear. If omitted,
+                clears all cached providers and aliases.
+
+        Returns:
+            None.
+        """
 
         if provider_types is None:
             target_types = set(self._alias_resolution_cache.keys()) | set(self._alias_resolution_provider_cache.keys())
@@ -163,7 +171,7 @@ class ModelRestrictionService:
         for provider_type in target_types:
             self._alias_resolution_cache.pop(provider_type, None)
             provider = self._alias_resolution_provider_cache.pop(provider_type, None)
-            if provider and hasattr(provider, "close"):
+            if provider:
                 try:
                     provider.close()
                 except Exception:  # pragma: no cover - defensive cleanup
@@ -328,7 +336,15 @@ _restriction_service: Optional[ModelRestrictionService] = None
 
 
 def invalidate_restriction_alias_caches(provider_types: Optional[set[ProviderType]] = None) -> None:
-    """Clear cached alias resolutions on the global restriction service instance."""
+    """Clear cached alias resolutions on the global restriction service instance.
+
+    Args:
+        provider_types: Optional set of providers to clear. If ``None``, clears
+            all cached alias data.
+
+    Returns:
+        None.
+    """
 
     if _restriction_service is None:
         return

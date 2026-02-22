@@ -9,6 +9,7 @@ from providers.shared import ProviderType
 
 
 def test_reload_provider_catalogs_invalidates_restriction_alias_cache() -> None:
+    """Invalidate restriction alias caches after provider reload."""
     service = model_restrictions.ModelRestrictionService()
     service.restrictions[ProviderType.OPENAI] = {"pro"}
     service._alias_resolution_cache[ProviderType.OPENAI]["pro"] = "gpt-old"
@@ -25,11 +26,13 @@ def test_reload_provider_catalogs_invalidates_restriction_alias_cache() -> None:
 
 
 def test_provider_api_key_env_mapping_covers_priority_providers() -> None:
+    """Ensure priority providers are covered by API key env mapping."""
     for provider_type in ModelProviderRegistry.PROVIDER_PRIORITY_ORDER:
         assert provider_type in provider_registry_module._PROVIDER_API_KEY_ENV
 
 
 def test_reload_provider_name_map_covers_provider_mappings() -> None:
+    """Ensure reload provider map covers API key mappings."""
     reload_provider_types = set(provider_registry_module._RELOAD_PROVIDER_NAME_MAP.values())
     mapped_provider_types = set(provider_registry_module._PROVIDER_API_KEY_ENV.keys())
     assert reload_provider_types == mapped_provider_types

@@ -277,7 +277,7 @@ def test_refresh_model_catalog_does_not_persist_cache_when_disabled(tmp_path, mo
     assert json.loads(cache_path.read_text(encoding="utf-8")) == sentinel_payload
 
 
-def test_write_json_if_changed_ignores_generated_metadata(tmp_path) -> None:
+def test_write_json_if_changed_updates_generated_metadata(tmp_path) -> None:
     path = tmp_path / "openai_models.json"
     base_payload = {
         "_GENERATED": {"source_mode": "static", "entry_count": 1, "generated_at": "2026-02-21T00:00:00+00:00"},
@@ -296,7 +296,7 @@ def test_write_json_if_changed_ignores_generated_metadata(tmp_path) -> None:
     second_ok, second_changed = catalog_service._write_json_if_changed(path, metadata_only_change)
 
     assert first_ok is True and first_changed is True
-    assert second_ok is True and second_changed is False
+    assert second_ok is True and second_changed is True
 
 
 def test_refresh_model_catalog_second_run_without_model_changes_has_no_changed_providers(tmp_path, monkeypatch) -> None:
@@ -307,7 +307,16 @@ def test_refresh_model_catalog_second_run_without_model_changes_has_no_changed_p
         monkeypatch.setenv("MODEL_CATALOG_ENABLE_CACHE", "false")
         monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(tmp_path / "generated"))
 
-        for env_var_name, _ in catalog_service._PROVIDER_CONFIG.values():
+        for env_var_name in (
+            "OPENAI_MODELS_CONFIG_PATH",
+            "GEMINI_MODELS_CONFIG_PATH",
+            "XAI_MODELS_CONFIG_PATH",
+            "OPENROUTER_MODELS_CONFIG_PATH",
+            "DIAL_MODELS_CONFIG_PATH",
+            "CUSTOM_MODELS_CONFIG_PATH",
+            "AZURE_MODELS_CONFIG_PATH",
+            "VERCEL_GATEWAY_MODELS_CONFIG_PATH",
+        ):
             monkeypatch.delenv(env_var_name, raising=False)
 
         first_status = refresh_model_catalog_once("test-first-refresh")

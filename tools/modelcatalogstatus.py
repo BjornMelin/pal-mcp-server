@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from mcp.types import TextContent
@@ -16,6 +17,15 @@ def _bool_icon(value: bool) -> str:
     return "✅" if value else "❌"
 
 
+def _format_path(path_value: str | None, *, show_paths: bool) -> str:
+    if not path_value:
+        return "none"
+    if show_paths:
+        return path_value
+    basename = os.path.basename(path_value)
+    return basename or "<redacted>"
+
+
 class ModelCatalogStatusTool(BaseTool):
     """Read-only diagnostics for the model catalog control-plane."""
 
@@ -28,7 +38,13 @@ class ModelCatalogStatusTool(BaseTool):
     def get_input_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "show_paths": {
+                    "type": "boolean",
+                    "description": "When true, include full local paths in output.",
+                    "default": False,
+                }
+            },
             "required": [],
             "additionalProperties": False,
         }
@@ -53,6 +69,7 @@ class ModelCatalogStatusTool(BaseTool):
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         status = get_model_catalog_status()
+        show_paths = bool(arguments.get("show_paths", False))
 
         output_lines = ["# Model Catalog Status", ""]
 
@@ -62,9 +79,8 @@ class ModelCatalogStatusTool(BaseTool):
         output_lines.append(f"- Source mode: `{status.get('source_mode', 'unknown')}`")
         output_lines.append(f"- Fallback mode: `{status.get('fallback_mode', 'none')}`")
         output_lines.append(f"- Merged models: {int(status.get('merged_models', 0) or 0)}")
-        output_lines.append(
-            f"- Changed providers (last run): {', '.join(status.get('changed_providers', [])) or 'none'}"
-        )
+        changed_providers = [str(item) for item in (status.get("changed_providers") or [])]
+        output_lines.append(f"- Changed providers (last run): {', '.join(changed_providers) or 'none'}")
         output_lines.append("")
 
         output_lines.append("## Refresh")
@@ -85,8 +101,10 @@ class ModelCatalogStatusTool(BaseTool):
         output_lines.append("## Discovery and Cache")
         output_lines.append(f"- Discovery enabled: {_bool_icon(bool(status.get('discovery_enabled', False)))}")
         output_lines.append(f"- Discovered models (last run): {int(status.get('discovered_models', 0) or 0)}")
-        output_lines.append(f"- Discovery errors: {', '.join(status.get('discovery_errors', [])) or 'none'}")
-        output_lines.append(f"- Cache path: `{status.get('cache_path') or 'none'}`")
+        discovery_errors = [str(item) for item in (status.get("discovery_errors") or [])]
+        output_lines.append(f"- Discovery errors: {', '.join(discovery_errors) or 'none'}")
+        cache_path = _format_path(status.get("cache_path"), show_paths=show_paths)
+        output_lines.append(f"- Cache path: `{cache_path}`")
         output_lines.append(f"- Cache enabled: {_bool_icon(bool(status.get('cache_enabled', False)))}")
         output_lines.append(f"- Cache loaded: {_bool_icon(bool(status.get('cache_loaded', False)))}")
         output_lines.append(f"- Cache saved: {_bool_icon(bool(status.get('cache_saved', False)))}")
@@ -107,7 +125,8 @@ class ModelCatalogStatusTool(BaseTool):
         output_lines.append("## Generated Manifests")
         if generated_paths:
             for provider_name in sorted(generated_paths.keys()):
-                output_lines.append(f"- `{provider_name}`: `{generated_paths[provider_name]}`")
+                path_value = _format_path(str(generated_paths[provider_name]), show_paths=show_paths)
+                output_lines.append(f"- `{provider_name}`: `{path_value}`")
         else:
             output_lines.append("- none")
 

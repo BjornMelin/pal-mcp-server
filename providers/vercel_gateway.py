@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from tools.models import ToolModelCategory
@@ -25,7 +25,7 @@ class VercelGatewayProvider(RegistryBackedProviderMixin, OpenAICompatibleProvide
     REGISTRY_CLASS = VercelGatewayModelRegistry
     MODEL_CAPABILITIES: ClassVar[dict[str, ModelCapabilities]] = {}
 
-    def __init__(self, api_key: str, **kwargs):
+    def __init__(self, api_key: str, **kwargs: Any) -> None:
         self._ensure_registry()
 
         base_url = get_env("VERCEL_AI_GATEWAY_BASE_URL", "https://ai-gateway.vercel.sh/v1")

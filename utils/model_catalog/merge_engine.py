@@ -15,7 +15,14 @@ _PROVIDER_EXTRA_FIELDS: dict[str, set[str]] = {
 
 
 def is_quarantine_description(description: str | None) -> bool:
-    """Return True when a model description marks the model as quarantined."""
+    """Return whether a model description marks the model as quarantined.
+
+    Args:
+        description: Candidate model description.
+
+    Returns:
+        True when description starts with the quarantine prefix.
+    """
 
     return bool(description and description.startswith(QUARANTINE_PREFIX))
 
@@ -44,7 +51,16 @@ def sanitize_capability_entry(
     *,
     source: str | None = None,
 ) -> dict[str, Any] | None:
-    """Normalize a capability entry to fields accepted by ModelCapabilities."""
+    """Normalize a capability entry to fields accepted by ``ModelCapabilities``.
+
+    Args:
+        entry: Raw capability entry payload.
+        provider_name: Provider identifier for the entry.
+        source: Optional catalog source tag.
+
+    Returns:
+        Normalized capability entry, or ``None`` when the input is invalid.
+    """
 
     model_name = str(entry.get("model_name", "")).strip()
     if not model_name:
@@ -122,7 +138,15 @@ def sanitize_capability_entry(
 
 
 def build_quarantine_entry(provider_name: str, entry: dict[str, Any]) -> dict[str, Any]:
-    """Create a conservative quarantine entry for newly discovered models."""
+    """Create a conservative quarantine entry for newly discovered models.
+
+    Args:
+        provider_name: Provider identifier for the discovered entry.
+        entry: Discovered capability metadata.
+
+    Returns:
+        Quarantined capability entry with safe defaults.
+    """
 
     model_name = str(entry.get("model_name", "")).strip()
     context_window = int(entry.get("context_window", 0) or 0)
@@ -222,7 +246,18 @@ def merge_catalogs(
     quarantine_enabled: bool,
     warnings_out: list[str] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Merge all catalog sources into provider-scoped capability entries."""
+    """Merge static, cache, and discovery sources into provider manifests.
+
+    Args:
+        static_by_provider: Provider-scoped static manifest entries.
+        cache_by_provider: Provider-scoped cached manifest entries.
+        discovered_entries: Discovery entries from provider APIs.
+        quarantine_enabled: Whether unknown discovered entries are quarantined.
+        warnings_out: Optional warning collector for merge side effects.
+
+    Returns:
+        Provider-scoped merged capability entries.
+    """
 
     merged: dict[str, dict[str, dict[str, Any]]] = {}
     warning_seen: set[str] = set()
@@ -310,7 +345,8 @@ def merge_catalogs(
                             warnings_out,
                             warning_seen,
                             (
-                                f"{provider_name}:{model_name} retained authoritative {key}={existing_val}; "
+                                f"{provider_name}:{model_name} retained authoritative "
+                                f"{key}={existing_val}; "
                                 f"discovery reported {discovered_int}"
                             ),
                         )
@@ -321,7 +357,8 @@ def merge_catalogs(
                         warnings_out,
                         warning_seen,
                         (
-                            f"{provider_name}:{model_name} retained authoritative {key}={existing_val!r}; "
+                            f"{provider_name}:{model_name} retained authoritative "
+                            f"{key}={existing_val!r}; "
                             f"discovery reported {discovered_val!r}"
                         ),
                     )
@@ -335,7 +372,8 @@ def merge_catalogs(
                 warnings_out,
                 warning_seen,
                 (
-                    f"{provider_name}:{model_name} skipped discovery insert because it collides with existing alias "
+                    f"{provider_name}:{model_name} skipped discovery insert because "
+                    "it collides with existing alias "
                     f"owned by {owner_name}"
                 ),
             )
@@ -354,7 +392,15 @@ def materialize_provider_manifests(
     *,
     source_mode: str,
 ) -> dict[str, dict[str, Any]]:
-    """Build JSON payloads ready to be written to provider registry files."""
+    """Build provider manifest payloads ready for JSON serialization.
+
+    Args:
+        merged_by_provider: Provider-scoped merged entries.
+        source_mode: Effective source mode used by the merge.
+
+    Returns:
+        Provider-scoped JSON payloads for registry manifests.
+    """
 
     manifests: dict[str, dict[str, Any]] = {}
 

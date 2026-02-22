@@ -44,6 +44,31 @@ def _format_catalog_age(last_updated_utc: str | None) -> str:
     return f"{age_seconds // 86400}d"
 
 
+def _catalog_metadata_lines(capabilities, *, description: str = "") -> list[str]:
+    lifecycle = getattr(capabilities, "lifecycle", "active") or "active"
+    source_tag = getattr(capabilities, "catalog_source", "static") or "unknown"
+    quarantine = bool(getattr(capabilities, "quarantine", False)) or str(description).startswith("[QUARANTINE]")
+
+    metadata_lines = [
+        f"  - Lifecycle: {lifecycle} | Quarantine: {str(quarantine).lower()} | Source: {source_tag}",
+    ]
+
+    release_metadata = getattr(capabilities, "release_metadata", None)
+    if isinstance(release_metadata, dict):
+        release_date = release_metadata.get("release_date")
+        source_url = release_metadata.get("source_url")
+        if release_date or source_url:
+            date_part = release_date or "unknown"
+            source_part = source_url or "unknown"
+            metadata_lines.append(f"  - Release metadata: date={date_part} | source={source_part}")
+
+    counterpart = getattr(capabilities, "openrouter_counterpart", None)
+    if counterpart:
+        metadata_lines.append(f"  - OpenRouter counterpart: `{counterpart}`")
+
+    return metadata_lines
+
+
 class ListModelsTool(BaseTool):
     """
     Tool for listing all available AI models organized by provider.
@@ -190,30 +215,6 @@ class ListModelsTool(BaseTool):
             if capabilities.allow_code_generation:
                 lines.append("  - Supports structured code generation")
             return lines
-
-        def _catalog_metadata_lines(capabilities, *, description: str = "") -> list[str]:
-            lifecycle = getattr(capabilities, "lifecycle", "active") or "active"
-            source_tag = getattr(capabilities, "catalog_source", "static") or "unknown"
-            quarantine = bool(getattr(capabilities, "quarantine", False)) or str(description).startswith("[QUARANTINE]")
-
-            metadata_lines = [
-                f"  - Lifecycle: {lifecycle} | Quarantine: {str(quarantine).lower()} | Source: {source_tag}",
-            ]
-
-            release_metadata = getattr(capabilities, "release_metadata", None)
-            if isinstance(release_metadata, dict):
-                release_date = release_metadata.get("release_date")
-                source_url = release_metadata.get("source_url")
-                if release_date or source_url:
-                    date_part = release_date or "unknown"
-                    source_part = source_url or "unknown"
-                    metadata_lines.append(f"  - Release metadata: date={date_part} | source={source_part}")
-
-            counterpart = getattr(capabilities, "openrouter_counterpart", None)
-            if counterpart:
-                metadata_lines.append(f"  - OpenRouter counterpart: `{counterpart}`")
-
-            return metadata_lines
 
         # Check each native provider type
         for provider_type, info in provider_info.items():

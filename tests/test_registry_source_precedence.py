@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from providers.registries.base import CapabilityModelRegistry
 from providers.shared import ProviderType
 
@@ -36,7 +38,11 @@ class _TestRegistry(CapabilityModelRegistry):
         )
 
 
-def test_packaged_registry_precedes_workspace_fallback(tmp_path, monkeypatch) -> None:
+def test_packaged_registry_precedes_workspace_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify packaged registry takes precedence over workspace fallback."""
     packaged_payload = {"models": [{"model_name": "packaged/model", "aliases": ["packaged"]}]}
     workspace_payload = {"models": [{"model_name": "workspace/model", "aliases": ["workspace"]}]}
 
@@ -60,7 +66,11 @@ def test_packaged_registry_precedes_workspace_fallback(tmp_path, monkeypatch) ->
     assert "path" not in metadata
 
 
-def test_workspace_fallback_still_used_when_packaged_resource_unavailable(tmp_path, monkeypatch) -> None:
+def test_workspace_fallback_still_used_when_packaged_resource_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify workspace fallback is used when packaged resource is unavailable."""
     workspace_payload = {"models": [{"model_name": "workspace/model", "aliases": ["workspace"]}]}
 
     workspace_path = tmp_path / "conf" / "pal_test_models.json"

@@ -22,7 +22,13 @@ CAPABILITY_FIELD_NAMES = {field.name for field in fields(ModelCapabilities)}
 
 @dataclass
 class RegistrySource:
-    """Candidate source for registry model manifests."""
+    """Candidate source for registry model manifests.
+
+    Args:
+        label: Human-readable source label for diagnostics.
+        path: Filesystem path for file-backed sources, if applicable.
+        use_resources: Whether to load this source via package resources.
+    """
 
     label: str
     path: Path | None = None
@@ -122,8 +128,11 @@ class CustomModelRegistryBase:
 
         try:
             resource = importlib.resources.files(self._resource_package).joinpath(self._default_filename)
-            if hasattr(resource, "read_text"):
+            try:
+                resource.read_text(encoding="utf-8")
                 _append_source("packaged_static", use_resources=True)
+            except AttributeError:  # pragma: no cover - legacy Python fallback
+                pass
         except Exception:
             logger.debug("Packaged model resource unavailable for %s", self._default_filename)
 
@@ -135,9 +144,9 @@ class CustomModelRegistryBase:
         if source.use_resources:
             try:
                 resource = importlib.resources.files(self._resource_package).joinpath(self._default_filename)
-                if hasattr(resource, "read_text"):
+                try:
                     config_text = resource.read_text(encoding="utf-8")
-                else:  # pragma: no cover - legacy Python fallback
+                except AttributeError:  # pragma: no cover - legacy Python fallback
                     with resource.open("r", encoding="utf-8") as handle:
                         config_text = handle.read()
                 payload = json.loads(config_text)
@@ -180,7 +189,11 @@ class CustomModelRegistryBase:
         return self._use_resources
 
     def get_source_metadata(self) -> dict[str, str]:
-        """Return the last source used when loading registry data."""
+        """Return metadata for the last source used when loading registry data.
+
+        Returns:
+            Mapping with source label and optional resolved path.
+        """
 
         metadata = {"source_label": self._active_source_label}
         if self.config_path is not None:

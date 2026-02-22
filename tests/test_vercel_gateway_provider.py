@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from providers.openrouter import OpenRouterProvider
 from providers.registry import ModelProviderRegistry
 from providers.shared import ProviderType
@@ -47,7 +49,19 @@ def _write_openrouter_registry(path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_vercel_provider_registry_alias_resolution(tmp_path, monkeypatch) -> None:
+def test_vercel_provider_registry_alias_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify registry alias resolution for the Vercel provider.
+
+    Args:
+        tmp_path: Pytest temporary directory fixture.
+        monkeypatch: Pytest environment patch fixture.
+
+    Returns:
+        None.
+    """
     config_path = tmp_path / "vercel_gateway_models.json"
     _write_vercel_registry(config_path)
 
@@ -70,7 +84,19 @@ def test_vercel_provider_registry_alias_resolution(tmp_path, monkeypatch) -> Non
     assert "gpt5-vg" in listed
 
 
-def test_vercel_provider_provider_model_requires_opt_in_for_generic_fallback(tmp_path, monkeypatch) -> None:
+def test_vercel_provider_provider_model_requires_opt_in_for_generic_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Require opt-in for provider/model generic fallback.
+
+    Args:
+        tmp_path: Pytest temporary directory fixture.
+        monkeypatch: Pytest environment patch fixture.
+
+    Returns:
+        None.
+    """
     config_path = tmp_path / "vercel_gateway_models.json"
     _write_vercel_registry(config_path)
 
@@ -93,7 +119,19 @@ def test_vercel_provider_provider_model_requires_opt_in_for_generic_fallback(tmp
     assert getattr(caps, "_is_generic", False) is True
 
 
-def test_vercel_provider_plain_model_name_requires_opt_in(tmp_path, monkeypatch) -> None:
+def test_vercel_provider_plain_model_name_requires_opt_in(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Require opt-in for plain model-name generic fallback.
+
+    Args:
+        tmp_path: Pytest temporary directory fixture.
+        monkeypatch: Pytest environment patch fixture.
+
+    Returns:
+        None.
+    """
     config_path = tmp_path / "vercel_gateway_models.json"
     _write_vercel_registry(config_path)
 
@@ -114,7 +152,19 @@ def test_vercel_provider_plain_model_name_requires_opt_in(tmp_path, monkeypatch)
     assert getattr(caps, "_is_generic", False) is True
 
 
-def test_registry_routes_unknown_provider_model_to_openrouter_when_vercel_is_strict(tmp_path, monkeypatch) -> None:
+def test_registry_routes_unknown_provider_model_to_openrouter_when_vercel_is_strict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Route unknown provider/model IDs to OpenRouter when Vercel is strict.
+
+    Args:
+        tmp_path: Pytest temporary directory fixture.
+        monkeypatch: Pytest environment patch fixture.
+
+    Returns:
+        None.
+    """
     vercel_config_path = tmp_path / "vercel_gateway_models.json"
     openrouter_config_path = tmp_path / "openrouter_models.json"
     _write_vercel_registry(vercel_config_path)
@@ -142,6 +192,6 @@ def test_registry_routes_unknown_provider_model_to_openrouter_when_vercel_is_str
         assert unknown_prefixed is not None
         assert unknown_prefixed.get_provider_type() == ProviderType.OPENROUTER
     finally:
-        OpenRouterProvider._registry = None
-        VercelGatewayProvider._registry = None
+        OpenRouterProvider.reload_registry()
+        VercelGatewayProvider.reload_registry()
         ModelProviderRegistry.reset_for_testing()
