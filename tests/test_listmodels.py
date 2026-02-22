@@ -150,6 +150,21 @@ class TestListModelsTool:
         assert "Use model aliases" in content
         assert "auto mode" in content
 
+    @pytest.mark.asyncio
+    async def test_catalog_status_failure_is_logged(self, tool):
+        with (
+            patch("utils.model_catalog.get_model_catalog_status", side_effect=RuntimeError("status failure")),
+            patch("tools.listmodels.logger.exception") as mock_logger_exception,
+        ):
+            result = await tool.execute({})
+
+        response = json.loads(result[0].text)
+        content = response["content"]
+
+        assert "## Catalog Snapshot" in content
+        assert "Source mode: `unknown`" in content
+        mock_logger_exception.assert_called_once()
+
     def test_model_category(self, tool):
         """Test that tool uses FAST_RESPONSE category"""
         from tools.models import ToolModelCategory

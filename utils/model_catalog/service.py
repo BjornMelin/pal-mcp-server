@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import sys
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,21 +53,60 @@ def _conf_dir() -> Path:
     return _project_root() / "conf"
 
 
+def _is_writable_directory(path: Path) -> bool:
+    probe_path = path / ".pal_catalog_write_probe"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe_path.write_text("ok", encoding="utf-8")
+        probe_path.unlink(missing_ok=True)
+        return True
+    except OSError:
+        with contextlib.suppress(OSError):
+            probe_path.unlink(missing_ok=True)
+        return False
+
+
+def _default_catalog_runtime_root() -> Path:
+    candidates: list[Path] = []
+    xdg_cache_home = get_env("XDG_CACHE_HOME")
+    if xdg_cache_home:
+        candidates.append(Path(xdg_cache_home).expanduser() / "pal-mcp-server" / "model_catalog")
+    candidates.append(Path.home() / ".cache" / "pal-mcp-server" / "model_catalog")
+    candidates.append(Path(tempfile.gettempdir()) / "pal-mcp-server" / "model_catalog")
+
+    for candidate in candidates:
+        if _is_writable_directory(candidate):
+            return candidate
+    return candidates[-1]
+
+
+def _resolve_catalog_storage_paths() -> tuple[Path, str]:
+    generated_raw = get_env("MODEL_CATALOG_GENERATED_DIR")
+    cache_raw = get_env("MODEL_CATALOG_CACHE_PATH")
+    if generated_raw and cache_raw:
+        return Path(generated_raw).expanduser(), str(Path(cache_raw).expanduser())
+
+    runtime_root = _default_catalog_runtime_root()
+    generated_dir = Path(generated_raw).expanduser() if generated_raw else runtime_root / "generated"
+    cache_path = Path(cache_raw).expanduser() if cache_raw else runtime_root / "model_catalog_cache.json"
+    return generated_dir, str(cache_path)
+
+
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _safe_positive_int(raw_value: str | None, default_value: int) -> int:
+def _safe_positive_int(raw_value: str | None, default_value: int, *, min_value: int = 1) -> int:
     try:
         parsed = int(str(raw_value or "").strip())
     except (TypeError, ValueError):
         return default_value
-    return parsed if parsed > 0 else default_value
+    return parsed if parsed >= min_value else default_value
 
 
 def _refresh_interval_seconds() -> int:
     raw = get_env("MODEL_CATALOG_REFRESH_INTERVAL_SECONDS", str(_DEFAULT_REFRESH_INTERVAL_SECONDS))
-    return _safe_positive_int(raw, _DEFAULT_REFRESH_INTERVAL_SECONDS)
+    return _safe_positive_int(raw, _DEFAULT_REFRESH_INTERVAL_SECONDS, min_value=0)
 
 
 def _read_manifest_file(path: Path) -> list[dict[str, Any]]:
@@ -223,10 +263,10 @@ def refresh_model_catalog_once(
         _store_status(status)
 
         try:
-            status.enabled = get_env_bool("MODEL_CATALOG_ENABLED", True)
+            status.enabled = get_env_bool("MODEL_CATALOG_ENABLED", False)
 
             running_under_pytest = bool(get_env("PYTEST_CURRENT_TEST")) or "pytest" in sys.modules
-            discovery_default = False if running_under_pytest else True
+            discovery_default = False
             cache_enabled_default = False if running_under_pytest else True
             cache_enabled = get_env_bool("MODEL_CATALOG_ENABLE_CACHE", cache_enabled_default)
             configured_discovery = get_env_bool("MODEL_CATALOG_ENABLE_DISCOVERY", discovery_default)
@@ -245,10 +285,17 @@ def refresh_model_catalog_once(
                 status.last_refresh_success = True
                 return status.to_dict()
 
-            cache_path = get_env("MODEL_CATALOG_CACHE_PATH", str(_conf_dir() / ".model_catalog_cache.json")) or str(
-                _conf_dir() / ".model_catalog_cache.json"
-            )
+            generated_dir, cache_path = _resolve_catalog_storage_paths()
             status.cache_path = cache_path
+            writes_enabled = _is_writable_directory(generated_dir) and _is_writable_directory(Path(cache_path).parent)
+            if not writes_enabled:
+                warning = (
+                    "Model catalog writes disabled for this run: "
+                    f"generated_dir='{generated_dir}', cache_path='{cache_path}'. "
+                    "Set MODEL_CATALOG_GENERATED_DIR and MODEL_CATALOG_CACHE_PATH to writable locations."
+                )
+                status.merge_warnings.append(warning)
+                logger.warning(warning)
 
             static_catalog = _load_static_catalog()
             cache_catalog = _load_cached_catalog(cache_path) if cache_enabled else {}
@@ -280,16 +327,11 @@ def refresh_model_catalog_once(
                 quarantine_enabled=quarantine_enabled,
                 warnings_out=merge_warnings,
             )
-            status.merge_warnings = merge_warnings
+            status.merge_warnings.extend(merge_warnings)
 
             generated_payloads = materialize_provider_manifests(
                 merged,
                 source_mode=source_mode,
-            )
-
-            generated_dir = Path(
-                get_env("MODEL_CATALOG_GENERATED_DIR", str(_conf_dir() / ".generated_catalog"))
-                or (_conf_dir() / ".generated_catalog")
             )
 
             runtime_overrides: dict[str, str] = {}
@@ -297,33 +339,34 @@ def refresh_model_catalog_once(
             status.generated_paths = {}
             status.skipped_overrides = []
 
-            for provider_name, payload in generated_payloads.items():
-                env_var_name, default_filename = _PROVIDER_CONFIG.get(provider_name, (None, None))
-                if not env_var_name or not default_filename:
-                    continue
+            if writes_enabled:
+                for provider_name, payload in generated_payloads.items():
+                    env_var_name, default_filename = _PROVIDER_CONFIG.get(provider_name, (None, None))
+                    if not env_var_name or not default_filename:
+                        continue
 
-                explicit_value = None if has_runtime_override(env_var_name) else get_env(env_var_name)
-                if explicit_value:
-                    status.skipped_overrides.append(env_var_name)
-                    continue
+                    explicit_value = None if has_runtime_override(env_var_name) else get_env(env_var_name)
+                    if explicit_value:
+                        status.skipped_overrides.append(env_var_name)
+                        continue
 
-                generated_path = generated_dir / default_filename
-                write_ok, changed = _write_json_if_changed(generated_path, payload)
-                if write_ok:
-                    runtime_overrides[env_var_name] = str(generated_path)
-                    status.generated_paths[provider_name] = str(generated_path)
-                    if changed:
-                        changed_providers.append(provider_name)
-                else:
-                    warning = f"failed to write generated catalog for provider '{provider_name}'"
-                    status.merge_warnings.append(warning)
-                    logger.warning(warning)
+                    generated_path = generated_dir / default_filename
+                    write_ok, changed = _write_json_if_changed(generated_path, payload)
+                    if write_ok:
+                        runtime_overrides[env_var_name] = str(generated_path)
+                        status.generated_paths[provider_name] = str(generated_path)
+                        if changed:
+                            changed_providers.append(provider_name)
+                    else:
+                        warning = f"failed to write generated catalog for provider '{provider_name}'"
+                        status.merge_warnings.append(warning)
+                        logger.warning(warning)
 
             if runtime_overrides:
                 set_runtime_envs(runtime_overrides)
 
             cache_saved = False
-            if cache_enabled:
+            if cache_enabled and writes_enabled:
                 cache_saved = save_cache(
                     cache_path,
                     {
@@ -408,7 +451,7 @@ async def start_model_catalog_refresh_task() -> None:
     status.refresh_interval_seconds = _refresh_interval_seconds()
     status.periodic_refresh_enabled = status.refresh_interval_seconds > 0
 
-    if not get_env_bool("MODEL_CATALOG_ENABLED", True) or not status.periodic_refresh_enabled:
+    if not get_env_bool("MODEL_CATALOG_ENABLED", False) or not status.periodic_refresh_enabled:
         status.refresh_task_running = False
         _store_status(status)
         logger.info("Model catalog periodic refresh disabled")
@@ -426,7 +469,11 @@ async def start_model_catalog_refresh_task() -> None:
     )
     status.refresh_task_running = True
     _store_status(status)
-    logger.info("Started model catalog periodic refresh task (interval=%ss)", status.refresh_interval_seconds)
+    logger.info(
+        "Started model catalog periodic refresh task (interval=%ss, discovery=%s)",
+        status.refresh_interval_seconds,
+        str(get_env_bool("MODEL_CATALOG_ENABLE_DISCOVERY", False)).lower(),
+    )
 
 
 async def stop_model_catalog_refresh_task() -> None:

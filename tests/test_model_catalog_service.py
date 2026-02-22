@@ -55,6 +55,49 @@ def test_refresh_model_catalog_disabled_mode(monkeypatch) -> None:
     assert status["last_refresh_success"] is True
 
 
+def test_refresh_model_catalog_defaults_to_disabled(monkeypatch) -> None:
+    monkeypatch.delenv("MODEL_CATALOG_ENABLED", raising=False)
+
+    status = refresh_model_catalog_once("test-default-disabled")
+
+    assert status["enabled"] is False
+    assert status["source_mode"] == "disabled"
+    assert status["fallback_mode"] == "disabled"
+
+
+def test_refresh_interval_allows_zero_to_disable_periodic_refresh(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_DISCOVERY", "false")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_CACHE", "false")
+    monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(tmp_path / "generated"))
+    monkeypatch.setenv("MODEL_CATALOG_REFRESH_INTERVAL_SECONDS", "0")
+
+    status = refresh_model_catalog_once("test-zero-interval")
+
+    assert status["refresh_interval_seconds"] == 0
+    assert status["periodic_refresh_enabled"] is False
+
+
+def test_discovery_defaults_to_disabled_when_enabled(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
+    monkeypatch.delenv("MODEL_CATALOG_ENABLE_DISCOVERY", raising=False)
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_CACHE", "false")
+    monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(tmp_path / "generated"))
+
+    called = {"count": 0}
+
+    def _discover_all(_timeout: int):
+        called["count"] += 1
+        return ([], [])
+
+    monkeypatch.setattr(catalog_service, "discover_all", _discover_all)
+
+    status = refresh_model_catalog_once("test-discovery-default-disabled")
+
+    assert called["count"] == 0
+    assert status["discovery_enabled"] is False
+
+
 def test_initialize_model_catalog_skips_discovery_by_default(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
     monkeypatch.setenv("MODEL_CATALOG_ENABLE_DISCOVERY", "true")
@@ -97,6 +140,19 @@ async def test_periodic_refresh_task_lifecycle(tmp_path, monkeypatch) -> None:
     await stop_model_catalog_refresh_task()
     stopped_status = get_model_catalog_status()
     assert stopped_status["refresh_task_running"] is False
+
+
+@pytest.mark.asyncio
+async def test_periodic_refresh_task_not_started_when_catalog_disabled(monkeypatch) -> None:
+    monkeypatch.delenv("MODEL_CATALOG_ENABLED", raising=False)
+    monkeypatch.setenv("MODEL_CATALOG_REFRESH_INTERVAL_SECONDS", "60")
+
+    await stop_model_catalog_refresh_task()
+    await start_model_catalog_refresh_task()
+
+    status = get_model_catalog_status()
+    assert status["refresh_task_running"] is False
+    assert status["periodic_refresh_enabled"] is True
 
 
 def test_startup_without_network_uses_cache_and_static(tmp_path, monkeypatch) -> None:
@@ -148,6 +204,25 @@ def test_discovery_api_outage_does_not_break_refresh(tmp_path, monkeypatch) -> N
     assert status["discovery_errors"] == ["OPENAI_API_KEY: timeout"]
     assert status["merged_models"] > 0
     assert status["generated_paths"]
+
+
+def test_refresh_disables_writes_when_generated_dir_is_not_writable(tmp_path, monkeypatch) -> None:
+    unwritable_path = tmp_path / "not_a_directory"
+    unwritable_path.write_text("blocked", encoding="utf-8")
+    cache_path = tmp_path / "cache.json"
+
+    monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_DISCOVERY", "false")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_CACHE", "true")
+    monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(unwritable_path))
+    monkeypatch.setenv("MODEL_CATALOG_CACHE_PATH", str(cache_path))
+
+    status = refresh_model_catalog_once("test-writes-disabled")
+
+    assert status["last_refresh_success"] is True
+    assert status["generated_paths"] == {}
+    assert status["cache_saved"] is False
+    assert any("MODEL_CATALOG_GENERATED_DIR" in warning for warning in status["merge_warnings"])
 
 
 def test_refresh_adds_openrouter_counterpart_for_new_discovered_model(tmp_path, monkeypatch) -> None:

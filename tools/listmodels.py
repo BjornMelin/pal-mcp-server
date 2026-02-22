@@ -116,6 +116,7 @@ class ListModelsTool(BaseTool):
         try:
             catalog_status = get_model_catalog_status()
         except Exception:
+            logger.exception("Failed to load model catalog status for listmodels output")
             catalog_status = {}
 
         output_lines.append("## Catalog Snapshot")

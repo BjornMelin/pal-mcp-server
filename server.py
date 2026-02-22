@@ -1505,9 +1505,13 @@ async def main():
     """
     # Validate and configure providers based on available API keys
     configure_providers()
+    from utils.env import get_env_bool
     from utils.model_catalog import start_model_catalog_refresh_task, stop_model_catalog_refresh_task
 
-    await start_model_catalog_refresh_task()
+    if get_env_bool("MODEL_CATALOG_ENABLED", False):
+        await start_model_catalog_refresh_task()
+    else:
+        logger.info("Model catalog periodic refresh disabled (MODEL_CATALOG_ENABLED=false)")
 
     # Log startup message
     logger.info("PAL MCP Server starting up...")

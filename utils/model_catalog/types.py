@@ -11,7 +11,7 @@ class CatalogStatus:
     """Runtime status for the model catalog service."""
 
     initialized: bool = False
-    enabled: bool = True
+    enabled: bool = False
     periodic_refresh_enabled: bool = False
     refresh_task_running: bool = False
     refresh_in_progress: bool = False
@@ -30,7 +30,7 @@ class CatalogStatus:
     cache_enabled: bool = True
     cache_loaded: bool = False
     cache_saved: bool = False
-    discovery_enabled: bool = True
+    discovery_enabled: bool = False
     discovery_errors: list[str] = field(default_factory=list)
     discovered_models: int = 0
     merged_models: int = 0

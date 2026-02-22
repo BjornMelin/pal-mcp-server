@@ -51,3 +51,15 @@ def test_save_cache_failure_keeps_existing_file(monkeypatch, tmp_path) -> None:
     assert cache_store.save_cache(str(cache_path), updated_payload) is False
 
     assert cache_path.read_text(encoding="utf-8") == original_text
+
+
+def test_save_cache_handles_parent_directory_creation_failure(monkeypatch, tmp_path) -> None:
+    cache_path = tmp_path / "missing" / "cache.json"
+
+    def _raise_mkdir(self, *args, **kwargs):  # noqa: ARG001
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(cache_store.Path, "mkdir", _raise_mkdir)
+
+    payload = {"providers": {"openai": [{"model_name": "gpt-5"}]}}
+    assert cache_store.save_cache(str(cache_path), payload) is False

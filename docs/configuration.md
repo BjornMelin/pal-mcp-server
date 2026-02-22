@@ -47,6 +47,16 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 # If using OpenRouter, comment out native API keys above
 ```
 
+**Option 2b: Vercel AI Gateway (Unified provider/model routing)**
+```env
+# Vercel AI Gateway for provider/model routing through one API
+VERCEL_AI_GATEWAY_API_KEY=your_vercel_ai_gateway_api_key_here
+# Optional override (defaults to https://ai-gateway.vercel.sh/v1)
+VERCEL_AI_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v1
+```
+- Docs: https://vercel.com/docs/ai-gateway
+- Model IDs use provider prefixes (example: `openai/gpt-5.2`)
+
 **Option 3: Custom API Endpoints (Local models)**
 ```env
 # For Ollama, vLLM, LM Studio, etc.
@@ -227,8 +237,8 @@ CUSTOM_MODELS_CONFIG_PATH=/path/to/custom_models.json
 **Automated Model Catalog Control Plane:**
 ```env
 # Enable merged model catalog generation at startup
-MODEL_CATALOG_ENABLED=true
-MODEL_CATALOG_ENABLE_DISCOVERY=true
+MODEL_CATALOG_ENABLED=false
+MODEL_CATALOG_ENABLE_DISCOVERY=false
 MODEL_CATALOG_ENABLE_CACHE=true
 MODEL_CATALOG_QUARANTINE_ENABLED=true
 

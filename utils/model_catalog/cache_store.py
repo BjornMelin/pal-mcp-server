@@ -28,9 +28,8 @@ def save_cache(cache_path: str, payload: dict[str, Any]) -> bool:
     """Persist a merged catalog snapshot atomically."""
 
     path = Path(cache_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile("w", encoding="utf-8", dir=str(path.parent), delete=False) as handle:
             json.dump(payload, handle, ensure_ascii=False, indent=2)
             temp_path = Path(handle.name)
