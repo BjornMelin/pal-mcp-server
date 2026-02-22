@@ -185,6 +185,8 @@ logs/
 *.backup
 *.backup-*.json
 /.desktop_configured
+conf/.generated_catalog/
+conf/.model_catalog_cache.json
 
 /worktrees/
 test_simulation_files/

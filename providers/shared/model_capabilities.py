@@ -35,6 +35,9 @@ class ModelCapabilities:
     provider: ProviderType
     model_name: str
     friendly_name: str
+    model_id: str = ""
+    provider_type: str = ""
+    display_name: str = ""
     intelligence_score: int = 10  # Human-curated 1–20 score reflecting general capability
     description: str = ""
     aliases: list[str] = field(default_factory=list)
@@ -60,9 +63,32 @@ class ModelCapabilities:
 
     # Additional attributes
     max_image_size_mb: float = 0.0
+    lifecycle: str = "active"
+    quarantine: bool = False
+    catalog_source: str = "static"
+    release_metadata: dict[str, str] = field(default_factory=dict)
+    openrouter_counterpart: Optional[str] = None
     temperature_constraint: TemperatureConstraint = field(
         default_factory=lambda: RangeTemperatureConstraint(0.0, 2.0, 0.3)
     )
+
+    def __post_init__(self) -> None:
+        """Backfill derived metadata fields for older config payloads."""
+
+        if not self.model_id:
+            self.model_id = self.model_name
+
+        if not self.provider_type:
+            if isinstance(self.provider, ProviderType):
+                self.provider_type = self.provider.value
+            else:
+                self.provider_type = str(self.provider)
+
+        if not self.display_name:
+            self.display_name = self.friendly_name or self.model_name
+
+        if not isinstance(self.release_metadata, dict):
+            self.release_metadata = {}
 
     def get_effective_temperature(self, requested_temperature: float) -> Optional[float]:
         """Return the temperature that should be sent to the provider.

@@ -123,7 +123,6 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
                     "gpt-5-codex",
                     "gpt-5.2-pro",
                     "o3-pro",
-                    "gpt-5",
                     "o3",
                 ]
             )
@@ -136,7 +135,6 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
                 [
                     "gpt-5.2",
                     "gpt-5.1-codex-mini",
-                    "gpt-5",
                     "gpt-5-mini",
                     "gpt-5-codex",
                     "o4-mini",
@@ -152,7 +150,6 @@ class OpenAIModelProvider(RegistryBackedProviderMixin, OpenAICompatibleProvider)
                 [
                     "gpt-5.2",
                     "gpt-5.1-codex",
-                    "gpt-5",
                     "gpt-5-codex",
                     "gpt-5.2-pro",
                     "gpt-5-mini",

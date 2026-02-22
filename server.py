@@ -58,6 +58,7 @@ from tools import (  # noqa: E402
     DocgenTool,
     ListModelsTool,
     LookupTool,
+    ModelCatalogStatusTool,
     PlannerTool,
     PrecommitTool,
     RefactorTool,
@@ -276,6 +277,7 @@ TOOLS = {
     "challenge": ChallengeTool(),  # Critical challenge prompt wrapper to avoid automatic agreement
     "apilookup": LookupTool(),  # Quick web/API lookup instructions
     "listmodels": ListModelsTool(),  # List all available AI models by provider
+    "modelcatalogstatus": ModelCatalogStatusTool(),  # Catalog control-plane diagnostics
     "version": VersionTool(),  # Display server version and system information
 }
 TOOLS = filter_disabled_tools(TOOLS)
@@ -367,6 +369,11 @@ PROMPT_TEMPLATES = {
         "description": "List available AI models",
         "template": "List all available models",
     },
+    "modelcatalogstatus": {
+        "name": "modelcatalogstatus",
+        "description": "Show model catalog control-plane status",
+        "template": "Show model catalog status",
+    },
     "version": {
         "name": "version",
         "description": "Show server version and system information",
@@ -385,26 +392,43 @@ def configure_providers():
     Raises:
         ValueError: If no valid API keys are found or conflicting configurations detected
     """
+    from utils.model_catalog import initialize_model_catalog
+
+    # Initialize generated model catalogs before importing provider modules.
+    try:
+        initialize_model_catalog()
+    except Exception as exc:
+        logger.warning("Model catalog initialization failed; continuing with static manifests: %s", exc)
+
     # Log environment variable status for debugging
     logger.debug("Checking environment variables for API keys...")
-    api_keys_to_check = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "CUSTOM_API_URL"]
+    api_keys_to_check = [
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "VERCEL_AI_GATEWAY_API_KEY",
+        "GEMINI_API_KEY",
+        "XAI_API_KEY",
+        "CUSTOM_API_URL",
+    ]
     for key in api_keys_to_check:
         value = get_env(key)
         logger.debug(f"  {key}: {'[PRESENT]' if value else '[MISSING]'}")
-    from providers import ModelProviderRegistry
     from providers.azure_openai import AzureOpenAIProvider
     from providers.custom import CustomProvider
     from providers.dial import DIALModelProvider
     from providers.gemini import GeminiModelProvider
     from providers.openai import OpenAIModelProvider
     from providers.openrouter import OpenRouterProvider
+    from providers.registry import ModelProviderRegistry
     from providers.shared import ProviderType
+    from providers.vercel_gateway import VercelGatewayProvider
     from providers.xai import XAIModelProvider
     from utils.model_restrictions import get_restriction_service
 
     valid_providers = []
     has_native_apis = False
     has_openrouter = False
+    has_vercel_gateway = False
     has_custom = False
 
     # Check for Gemini API key
@@ -475,6 +499,13 @@ def configure_providers():
         else:
             logger.debug("OpenRouter API key is placeholder value")
 
+    # Check for Vercel AI Gateway API key
+    vercel_gateway_key = get_env("VERCEL_AI_GATEWAY_API_KEY")
+    if vercel_gateway_key and vercel_gateway_key != "your_vercel_ai_gateway_api_key_here":
+        valid_providers.append("Vercel AI Gateway")
+        has_vercel_gateway = True
+        logger.info("Vercel AI Gateway API key found - Unified provider/model access available")
+
     # Check for custom API endpoint (Ollama, vLLM, etc.)
     custom_url = get_env("CUSTOM_API_URL")
     if custom_url:
@@ -530,7 +561,13 @@ def configure_providers():
         registered_providers.append(ProviderType.CUSTOM.value)
         logger.debug(f"Registered provider: {ProviderType.CUSTOM.value}")
 
-    # 3. OpenRouter last (catch-all for everything else)
+    # 3. Vercel Gateway third (unified provider/model routing)
+    if has_vercel_gateway:
+        ModelProviderRegistry.register_provider(ProviderType.VERCEL_GATEWAY, VercelGatewayProvider)
+        registered_providers.append(ProviderType.VERCEL_GATEWAY.value)
+        logger.debug(f"Registered provider: {ProviderType.VERCEL_GATEWAY.value}")
+
+    # 4. OpenRouter last (catch-all for everything else)
     if has_openrouter:
         ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
         registered_providers.append(ProviderType.OPENROUTER.value)
@@ -548,6 +585,7 @@ def configure_providers():
             "- OPENAI_API_KEY for OpenAI models\n"
             "- XAI_API_KEY for X.AI GROK models\n"
             "- DIAL_API_KEY for DIAL models\n"
+            "- VERCEL_AI_GATEWAY_API_KEY for Vercel AI Gateway (unified provider/model routing)\n"
             "- OPENROUTER_API_KEY for OpenRouter (multiple models)\n"
             "- CUSTOM_API_URL for local models (Ollama, vLLM, etc.)"
         )
@@ -560,6 +598,8 @@ def configure_providers():
         priority_info.append("Native APIs (Gemini, OpenAI)")
     if has_custom:
         priority_info.append("Custom endpoints")
+    if has_vercel_gateway:
+        priority_info.append("Vercel AI Gateway")
     if has_openrouter:
         priority_info.append("OpenRouter (catch-all)")
 
@@ -600,7 +640,13 @@ def configure_providers():
 
         # Validate restrictions against known models
         provider_instances = {}
-        provider_types_to_validate = [ProviderType.GOOGLE, ProviderType.OPENAI, ProviderType.XAI, ProviderType.DIAL]
+        provider_types_to_validate = [
+            ProviderType.GOOGLE,
+            ProviderType.OPENAI,
+            ProviderType.XAI,
+            ProviderType.DIAL,
+            ProviderType.VERCEL_GATEWAY,
+        ]
         for provider_type in provider_types_to_validate:
             provider = ModelProviderRegistry.get_provider(provider_type)
             if provider:
@@ -1459,6 +1505,9 @@ async def main():
     """
     # Validate and configure providers based on available API keys
     configure_providers()
+    from utils.model_catalog import start_model_catalog_refresh_task, stop_model_catalog_refresh_task
+
+    await start_model_catalog_refresh_task()
 
     # Log startup message
     logger.info("PAL MCP Server starting up...")
@@ -1497,20 +1546,23 @@ async def main():
 
     # Run the server using stdio transport (standard input/output)
     # This allows the server to be launched by MCP clients as a subprocess
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="PAL",
-                server_version=__version__,
-                instructions=handshake_instructions,
-                capabilities=ServerCapabilities(
-                    tools=ToolsCapability(),  # Advertise tool support capability
-                    prompts=PromptsCapability(),  # Advertise prompt support capability
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="PAL",
+                    server_version=__version__,
+                    instructions=handshake_instructions,
+                    capabilities=ServerCapabilities(
+                        tools=ToolsCapability(),  # Advertise tool support capability
+                        prompts=PromptsCapability(),  # Advertise prompt support capability
+                    ),
                 ),
-            ),
-        )
+            )
+    finally:
+        await stop_model_catalog_refresh_task()
 
 
 def run():

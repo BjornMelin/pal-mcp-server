@@ -3,13 +3,36 @@
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from utils.env import get_env
+from utils.env import get_env, get_env_bool
 
 from .base import ModelProvider
 from .shared import ProviderType
 
 if TYPE_CHECKING:
     from tools.models import ToolModelCategory
+
+
+_PROVIDER_API_KEY_ENV = {
+    ProviderType.GOOGLE: "GEMINI_API_KEY",
+    ProviderType.OPENAI: "OPENAI_API_KEY",
+    ProviderType.AZURE: "AZURE_OPENAI_API_KEY",
+    ProviderType.XAI: "XAI_API_KEY",
+    ProviderType.OPENROUTER: "OPENROUTER_API_KEY",
+    ProviderType.VERCEL_GATEWAY: "VERCEL_AI_GATEWAY_API_KEY",
+    ProviderType.CUSTOM: "CUSTOM_API_KEY",  # Can be empty for providers that don't need auth
+    ProviderType.DIAL: "DIAL_API_KEY",
+}
+
+_RELOAD_PROVIDER_NAME_MAP = {
+    "google": ProviderType.GOOGLE,
+    "openai": ProviderType.OPENAI,
+    "azure": ProviderType.AZURE,
+    "xai": ProviderType.XAI,
+    "openrouter": ProviderType.OPENROUTER,
+    "vercel_gateway": ProviderType.VERCEL_GATEWAY,
+    "custom": ProviderType.CUSTOM,
+    "dial": ProviderType.DIAL,
+}
 
 
 class ModelProviderRegistry:
@@ -42,6 +65,7 @@ class ModelProviderRegistry:
         ProviderType.XAI,  # Direct X.AI GROK access
         ProviderType.DIAL,  # DIAL unified API access
         ProviderType.CUSTOM,  # Local/self-hosted models
+        ProviderType.VERCEL_GATEWAY,  # Unified provider/model routing via Vercel
         ProviderType.OPENROUTER,  # Catch-all for cloud models
     ]
 
@@ -84,7 +108,9 @@ class ModelProviderRegistry:
 
         # Return cached instance if available and not forcing new
         if not force_new and provider_type in instance._initialized_providers:
-            return instance._initialized_providers[provider_type]
+            if cls._provider_has_runtime_config(provider_type):
+                return instance._initialized_providers[provider_type]
+            instance._initialized_providers.pop(provider_type, None)
 
         # Check if provider class is registered
         if provider_type not in instance._providers:
@@ -149,6 +175,23 @@ class ModelProviderRegistry:
         instance._initialized_providers[provider_type] = provider
 
         return provider
+
+    @classmethod
+    def _provider_has_runtime_config(cls, provider_type: ProviderType) -> bool:
+        """Return True when provider-required runtime configuration is still present."""
+
+        if provider_type == ProviderType.CUSTOM:
+            return bool(get_env("CUSTOM_API_URL", "") or "")
+
+        api_key = cls._get_api_key_for_provider(provider_type)
+        if not api_key:
+            return False
+
+        if provider_type == ProviderType.AZURE:
+            azure_endpoint = get_env("AZURE_OPENAI_ENDPOINT")
+            return bool(azure_endpoint)
+
+        return True
 
     @classmethod
     def get_provider_for_model(cls, model_name: str) -> Optional[ModelProvider]:
@@ -235,22 +278,13 @@ class ModelProviderRegistry:
                     continue
 
             for model_name in available:
-                # =====================================================================================
-                # CRITICAL: Prevent double restriction filtering (Fixed Issue #98)
-                # =====================================================================================
-                # Previously, both the provider AND registry applied restrictions, causing
-                # double-filtering that resulted in "no models available" errors.
-                #
-                # Logic: If respect_restrictions=True, provider already filtered models,
-                # so registry should NOT filter them again.
-                # TEST COVERAGE: tests/test_provider_routing_bugs.py::TestOpenRouterAliasRestrictions
-                # =====================================================================================
-                if (
-                    restriction_service
-                    and not respect_restrictions  # Only filter if provider didn't already filter
-                    and not restriction_service.is_allowed(provider_type, model_name)
+                if not cls._is_model_eligible(
+                    provider,
+                    provider_type,
+                    model_name,
+                    restriction_service=restriction_service,
+                    respect_restrictions=respect_restrictions,
                 ):
-                    logging.debug("Model %s filtered by restrictions", model_name)
                     continue
                 models[model_name] = provider_type
 
@@ -273,6 +307,15 @@ class ModelProviderRegistry:
         allowed_details: list[tuple[str, int]] = []
 
         for model_name in sorted(allowed_models):
+            if not cls._is_model_eligible(
+                provider,
+                provider_type,
+                model_name,
+                restriction_service=restriction_service,
+                respect_restrictions=True,
+            ):
+                continue
+
             try:
                 capabilities = provider.get_capabilities(model_name)
             except (AttributeError, ValueError):
@@ -296,7 +339,16 @@ class ModelProviderRegistry:
         for model_name in sorted(allowed_models):
             lowered = model_name.lower()
             if lowered in available_lookup:
-                display_names.append(available_lookup[lowered])
+                display_name = available_lookup[lowered]
+                if not cls._is_model_eligible(
+                    provider,
+                    provider_type,
+                    display_name,
+                    restriction_service=restriction_service,
+                    respect_restrictions=True,
+                ):
+                    continue
+                display_names.append(display_name)
 
         return display_names
 
@@ -331,21 +383,38 @@ class ModelProviderRegistry:
         Returns:
             API key string or None if not found
         """
-        key_mapping = {
-            ProviderType.GOOGLE: "GEMINI_API_KEY",
-            ProviderType.OPENAI: "OPENAI_API_KEY",
-            ProviderType.AZURE: "AZURE_OPENAI_API_KEY",
-            ProviderType.XAI: "XAI_API_KEY",
-            ProviderType.OPENROUTER: "OPENROUTER_API_KEY",
-            ProviderType.CUSTOM: "CUSTOM_API_KEY",  # Can be empty for providers that don't need auth
-            ProviderType.DIAL: "DIAL_API_KEY",
-        }
-
-        env_var = key_mapping.get(provider_type)
+        env_var = _PROVIDER_API_KEY_ENV.get(provider_type)
         if not env_var:
             return None
 
         return get_env(env_var)
+
+    @classmethod
+    def _is_model_eligible(
+        cls,
+        provider: ModelProvider,
+        provider_type: ProviderType,
+        model_name: str,
+        *,
+        restriction_service,
+        respect_restrictions: bool,
+    ) -> bool:
+        """Return True when a model is eligible for routing and display."""
+
+        if cls._is_quarantined_model(provider, model_name):
+            logging.debug("Model %s filtered by quarantine", model_name)
+            return False
+
+        if (
+            respect_restrictions
+            and restriction_service
+            and restriction_service.has_restrictions(provider_type)
+            and not restriction_service.is_allowed(provider_type, model_name)
+        ):
+            logging.debug("Model %s filtered by restrictions", model_name)
+            return False
+
+        return True
 
     @classmethod
     def _get_allowed_models_for_provider(cls, provider: ModelProvider, provider_type: ProviderType) -> list[str]:
@@ -375,10 +444,41 @@ class ModelProviderRegistry:
 
         # Filter by restrictions
         for model_name in supported_models:
-            if restriction_service.is_allowed(provider_type, model_name):
+            if cls._is_model_eligible(
+                provider,
+                provider_type,
+                model_name,
+                restriction_service=restriction_service,
+                respect_restrictions=True,
+            ):
                 allowed_models.append(model_name)
 
         return allowed_models
+
+    @classmethod
+    def _is_quarantined_model(cls, provider: ModelProvider, model_name: str) -> bool:
+        """Return True when model-catalog quarantine should exclude this model."""
+
+        if not get_env_bool("MODEL_CATALOG_QUARANTINE_ENABLED", True):
+            return False
+
+        try:
+            capabilities = provider.get_capabilities(model_name)
+        except Exception:
+            return False
+
+        # Treat quarantine as opt-in only when explicitly set to boolean True.
+        # This avoids false positives with MagicMock/default attributes in tests.
+        quarantine_flag = getattr(capabilities, "quarantine", False) is True
+        if quarantine_flag:
+            return True
+
+        lifecycle = str(getattr(capabilities, "lifecycle", "") or "").strip().lower()
+        if lifecycle == "quarantined":
+            return True
+
+        description = getattr(capabilities, "description", "") or ""
+        return str(description).startswith("[QUARANTINE]")
 
     @classmethod
     def get_preferred_fallback_model(cls, tool_category: Optional["ToolModelCategory"] = None) -> str:
@@ -451,6 +551,90 @@ class ModelProviderRegistry:
         """Clear cached provider instances."""
         instance = cls()
         instance._initialized_providers.clear()
+
+    @classmethod
+    def reload_provider_catalogs(cls, provider_names: list[str] | None = None) -> None:
+        """Reload provider model registries and invalidate cached provider instances.
+
+        Args:
+            provider_names: Optional provider name list from model-catalog service
+                (e.g. ``["openai", "google"]``). When omitted, all known
+                provider-backed registries are refreshed.
+        """
+
+        if provider_names is None:
+            target_types = set(_RELOAD_PROVIDER_NAME_MAP.values())
+        else:
+            target_types = {
+                _RELOAD_PROVIDER_NAME_MAP[name.strip().lower()]
+                for name in provider_names
+                if name and name.strip().lower() in _RELOAD_PROVIDER_NAME_MAP
+            }
+
+        if not target_types:
+            return
+
+        instance = cls()
+        for provider_type in target_types:
+            provider = instance._initialized_providers.pop(provider_type, None)
+            if not provider:
+                continue
+            try:
+                if hasattr(provider, "close"):
+                    provider.close()
+            except Exception:  # pragma: no cover - defensive cleanup
+                logging.debug("Ignoring provider close failure for %s", provider_type.value)
+
+        # Reload class-level registries so new provider instances pick up generated manifests.
+        reloaders = {}
+        try:
+            from providers.custom import CustomProvider
+            from providers.dial import DIALModelProvider
+            from providers.gemini import GeminiModelProvider
+            from providers.openai import OpenAIModelProvider
+            from providers.openrouter import OpenRouterProvider
+            from providers.vercel_gateway import VercelGatewayProvider
+            from providers.xai import XAIModelProvider
+
+            reloaders = {
+                ProviderType.GOOGLE: GeminiModelProvider.reload_registry,
+                ProviderType.OPENAI: OpenAIModelProvider.reload_registry,
+                ProviderType.XAI: XAIModelProvider.reload_registry,
+                ProviderType.DIAL: DIALModelProvider.reload_registry,
+                ProviderType.VERCEL_GATEWAY: VercelGatewayProvider.reload_registry,
+                ProviderType.OPENROUTER: OpenRouterProvider.reload_registry,
+                ProviderType.CUSTOM: CustomProvider.reload_registry,
+            }
+        except Exception as exc:  # pragma: no cover - import side effects vary in tests
+            logging.debug("Registry reloaders unavailable: %s", exc)
+
+        for provider_type in target_types:
+            reloader = reloaders.get(provider_type)
+            if not reloader:
+                continue
+            try:
+                reloader()
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                logging.warning("Failed to reload %s registry metadata: %s", provider_type.value, exc)
+
+        try:
+            from tools.shared.base_tool import BaseTool
+
+            BaseTool.clear_registry_caches()
+        except Exception as exc:  # pragma: no cover - avoid hard dependency in tests
+            logging.debug("Could not clear tool registry caches after catalog reload: %s", exc)
+
+        try:
+            from utils.model_restrictions import invalidate_restriction_alias_caches
+
+            invalidate_restriction_alias_caches(target_types)
+        except Exception as exc:  # pragma: no cover - avoid hard dependency in tests
+            logging.debug("Could not clear restriction alias caches after catalog reload: %s", exc)
+
+        logging.info(
+            "Reloaded provider model catalogs for: %s",
+            ", ".join(sorted(provider_type.value for provider_type in target_types)),
+        )
 
     @classmethod
     def reset_for_testing(cls) -> None:

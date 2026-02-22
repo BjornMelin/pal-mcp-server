@@ -43,6 +43,12 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     # Model registry for managing configurations and aliases
     _registry: OpenRouterModelRegistry | None = None
 
+    @classmethod
+    def reload_registry(cls) -> None:
+        """Reload OpenRouter model registry metadata."""
+
+        cls._registry = OpenRouterModelRegistry()
+
     def __init__(self, api_key: str, **kwargs):
         """Initialize OpenRouter provider.
 
@@ -86,6 +92,7 @@ class OpenRouterProvider(OpenAICompatibleProvider):
                 provider=ProviderType.OPENROUTER,
                 model_name=canonical_name,
                 friendly_name=self.FRIENDLY_NAME,
+                display_name=f"{self.FRIENDLY_NAME} ({canonical_name})",
                 intelligence_score=9,
                 context_window=32_768,
                 max_output_tokens=32_768,
@@ -93,6 +100,13 @@ class OpenRouterProvider(OpenAICompatibleProvider):
                 supports_system_prompts=True,
                 supports_streaming=True,
                 supports_function_calling=False,
+                lifecycle="quarantined",
+                quarantine=True,
+                catalog_source="generic_fallback",
+                description=(
+                    "Generic OpenRouter capability inferred from provider/model syntax. "
+                    "Allowed for explicit user requests; excluded from auto-mode selection."
+                ),
                 temperature_constraint=RangeTemperatureConstraint(0.0, 2.0, 1.0),
             )
             generic._is_generic = True

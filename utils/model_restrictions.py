@@ -11,6 +11,7 @@ Environment Variables:
 - GOOGLE_ALLOWED_MODELS: Comma-separated list of allowed Gemini models
 - XAI_ALLOWED_MODELS: Comma-separated list of allowed X.AI GROK models
 - OPENROUTER_ALLOWED_MODELS: Comma-separated list of allowed OpenRouter models
+- VERCEL_GATEWAY_ALLOWED_MODELS: Comma-separated list of allowed Vercel AI Gateway models
 - DIAL_ALLOWED_MODELS: Comma-separated list of allowed DIAL models
 
 Example:
@@ -22,7 +23,7 @@ Example:
 
 import logging
 from collections import defaultdict
-from typing import Optional
+from typing import Any, Optional
 
 from providers.shared import ProviderType
 from utils.env import get_env
@@ -53,6 +54,7 @@ class ModelRestrictionService:
         ProviderType.GOOGLE: "GOOGLE_ALLOWED_MODELS",
         ProviderType.XAI: "XAI_ALLOWED_MODELS",
         ProviderType.OPENROUTER: "OPENROUTER_ALLOWED_MODELS",
+        ProviderType.VERCEL_GATEWAY: "VERCEL_GATEWAY_ALLOWED_MODELS",
         ProviderType.DIAL: "DIAL_ALLOWED_MODELS",
     }
 
@@ -60,7 +62,68 @@ class ModelRestrictionService:
         """Initialize the restriction service by loading from environment."""
         self.restrictions: dict[ProviderType, set[str]] = {}
         self._alias_resolution_cache: dict[ProviderType, dict[str, str]] = defaultdict(dict)
+        self._alias_resolution_provider_cache: dict[ProviderType, Any] = {}
         self._load_from_env()
+
+    def _get_alias_resolution_provider(self, provider_type: ProviderType):
+        """Return a provider instance suitable for alias-to-canonical resolution."""
+
+        try:
+            from providers.registry import ModelProviderRegistry
+
+            provider = ModelProviderRegistry.get_provider(provider_type)
+            if provider:
+                return provider
+        except Exception:  # pragma: no cover - defensive fallback
+            provider = None
+
+        if provider_type in self._alias_resolution_provider_cache:
+            return self._alias_resolution_provider_cache[provider_type]
+
+        try:
+            if provider_type == ProviderType.OPENAI:
+                from providers.openai import OpenAIModelProvider
+
+                provider = OpenAIModelProvider(api_key=(get_env("OPENAI_API_KEY") or "restriction-alias-resolution"))
+            elif provider_type == ProviderType.GOOGLE:
+                from providers.gemini import GeminiModelProvider
+
+                provider_kwargs = {"api_key": (get_env("GEMINI_API_KEY") or "restriction-alias-resolution")}
+                gemini_base_url = get_env("GEMINI_BASE_URL")
+                if gemini_base_url:
+                    provider_kwargs["base_url"] = gemini_base_url
+                provider = GeminiModelProvider(**provider_kwargs)
+            elif provider_type == ProviderType.XAI:
+                from providers.xai import XAIModelProvider
+
+                provider = XAIModelProvider(api_key=(get_env("XAI_API_KEY") or "restriction-alias-resolution"))
+            elif provider_type == ProviderType.OPENROUTER:
+                from providers.openrouter import OpenRouterProvider
+
+                provider = OpenRouterProvider(api_key=(get_env("OPENROUTER_API_KEY") or "restriction-alias-resolution"))
+            elif provider_type == ProviderType.VERCEL_GATEWAY:
+                from providers.vercel_gateway import VercelGatewayProvider
+
+                provider = VercelGatewayProvider(
+                    api_key=(get_env("VERCEL_AI_GATEWAY_API_KEY") or "restriction-alias-resolution")
+                )
+            elif provider_type == ProviderType.DIAL:
+                from providers.dial import DIALModelProvider
+
+                provider = DIALModelProvider(api_key=(get_env("DIAL_API_KEY") or "restriction-alias-resolution"))
+            else:
+                provider = None
+        except Exception as exc:  # pragma: no cover - resolution helpers must not break policy checks
+            logger.debug(
+                "Could not initialize %s provider for alias resolution: %s",
+                provider_type.value,
+                exc,
+            )
+            provider = None
+
+        if provider:
+            self._alias_resolution_provider_cache[provider_type] = provider
+        return provider
 
     def _load_from_env(self) -> None:
         """Load restrictions from environment variables."""
@@ -86,6 +149,25 @@ class ModelRestrictionService:
             else:
                 # All entries were empty after cleaning - treat as no restrictions
                 logger.debug(f"{env_var} contains only whitespace - all {provider_type.value} models allowed")
+
+    def invalidate_alias_resolution_cache(self, provider_types: Optional[set[ProviderType]] = None) -> None:
+        """Clear cached alias resolutions so future checks use fresh provider metadata."""
+
+        if provider_types is None:
+            target_types = set(self._alias_resolution_cache.keys()) | set(self._alias_resolution_provider_cache.keys())
+        else:
+            target_types = {
+                provider_type for provider_type in provider_types if isinstance(provider_type, ProviderType)
+            }
+
+        for provider_type in target_types:
+            self._alias_resolution_cache.pop(provider_type, None)
+            provider = self._alias_resolution_provider_cache.pop(provider_type, None)
+            if provider and hasattr(provider, "close"):
+                try:
+                    provider.close()
+                except Exception:  # pragma: no cover - defensive cleanup
+                    logger.debug("Ignoring alias-resolution provider close failure for %s", provider_type.value)
 
     def validate_against_known_models(self, provider_instances: dict[ProviderType, any]) -> None:
         """
@@ -157,12 +239,7 @@ class ModelRestrictionService:
             return True
 
         # Attempt to resolve canonical names for allowed aliases using provider metadata.
-        try:
-            from providers.registry import ModelProviderRegistry
-
-            provider = ModelProviderRegistry.get_provider(provider_type)
-        except Exception:  # pragma: no cover - registry lookup failure shouldn't break validation
-            provider = None
+        provider = self._get_alias_resolution_provider(provider_type)
 
         if provider:
             cache = self._alias_resolution_cache.setdefault(provider_type, {})
@@ -248,6 +325,15 @@ class ModelRestrictionService:
 
 # Global instance (singleton pattern)
 _restriction_service: Optional[ModelRestrictionService] = None
+
+
+def invalidate_restriction_alias_caches(provider_types: Optional[set[ProviderType]] = None) -> None:
+    """Clear cached alias resolutions on the global restriction service instance."""
+
+    if _restriction_service is None:
+        return
+
+    _restriction_service.invalidate_alias_resolution_cache(provider_types)
 
 
 def get_restriction_service() -> ModelRestrictionService:

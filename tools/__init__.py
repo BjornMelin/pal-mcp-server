@@ -12,6 +12,7 @@ from .consensus import ConsensusTool
 from .debug import DebugIssueTool
 from .docgen import DocgenTool
 from .listmodels import ListModelsTool
+from .modelcatalogstatus import ModelCatalogStatusTool
 from .planner import PlannerTool
 from .precommit import PrecommitTool
 from .refactor import RefactorTool
@@ -32,6 +33,7 @@ __all__ = [
     "CLinkTool",
     "ConsensusTool",
     "ListModelsTool",
+    "ModelCatalogStatusTool",
     "PlannerTool",
     "PrecommitTool",
     "ChallengeTool",

@@ -34,6 +34,12 @@ class CustomProvider(OpenAICompatibleProvider):
     # Model registry for managing configurations and aliases
     _registry: CustomEndpointModelRegistry | None = None
 
+    @classmethod
+    def reload_registry(cls) -> None:
+        """Reload custom endpoint model registry metadata."""
+
+        cls._registry = CustomEndpointModelRegistry()
+
     def __init__(self, api_key: str = "", base_url: str = "", **kwargs):
         """Initialize Custom provider for local/self-hosted models.
 

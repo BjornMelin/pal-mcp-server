@@ -6,7 +6,7 @@ import importlib.resources
 import json
 import logging
 from collections.abc import Iterable
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 from utils.env import get_env
@@ -18,6 +18,15 @@ logger = logging.getLogger(__name__)
 
 
 CAPABILITY_FIELD_NAMES = {field.name for field in fields(ModelCapabilities)}
+
+
+@dataclass
+class RegistrySource:
+    """Candidate source for registry model manifests."""
+
+    label: str
+    path: Path | None = None
+    use_resources: bool = False
 
 
 class CustomModelRegistryBase:
@@ -32,32 +41,20 @@ class CustomModelRegistryBase:
     ) -> None:
         self._env_var_name = env_var_name
         self._default_filename = default_filename
+        self._explicit_config_path = config_path
         self._use_resources = False
         self._resource_package = "conf"
         self._default_path = Path(__file__).resolve().parents[3] / "conf" / default_filename
-
-        if config_path:
-            self.config_path = Path(config_path)
-        else:
-            env_path = get_env(env_var_name)
-            if env_path:
-                self.config_path = Path(env_path)
-            else:
-                try:
-                    resource = importlib.resources.files(self._resource_package).joinpath(default_filename)
-                    if hasattr(resource, "read_text"):
-                        self._use_resources = True
-                        self.config_path = None
-                    else:
-                        raise AttributeError("resource accessor not available")
-                except Exception:
-                    self.config_path = Path(__file__).resolve().parents[3] / "conf" / default_filename
+        self.config_path: Path | None = None
+        self._active_source_label = "unloaded"
+        self._sources = self._build_sources(config_path)
 
         self.alias_map: dict[str, str] = {}
         self.model_map: dict[str, ModelCapabilities] = {}
         self._extras: dict[str, dict] = {}
 
     def reload(self) -> None:
+        self._sources = self._build_sources(self._explicit_config_path)
         data = self._load_config_data()
         configs = [config for config in self._parse_models(data) if config is not None]
         self._build_maps(configs)
@@ -97,8 +94,45 @@ class CustomModelRegistryBase:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _load_config_data(self) -> dict:
-        if self._use_resources:
+    def _build_sources(self, explicit_config_path: str | None) -> list[RegistrySource]:
+        sources: list[RegistrySource] = []
+        seen: set[str] = set()
+
+        def _append_source(label: str, path: Path | None = None, use_resources: bool = False) -> None:
+            if path is not None:
+                normalized = str(path.resolve())
+                if normalized in seen:
+                    return
+                seen.add(normalized)
+            elif use_resources:
+                if "__resources__" in seen:
+                    return
+                seen.add("__resources__")
+            sources.append(RegistrySource(label=label, path=path, use_resources=use_resources))
+
+        if explicit_config_path:
+            _append_source("explicit", Path(explicit_config_path))
+            return sources
+        else:
+            env_path = get_env(self._env_var_name)
+            if env_path:
+                _append_source("runtime_override", Path(env_path))
+
+        _append_source("static", self._default_path)
+
+        try:
+            resource = importlib.resources.files(self._resource_package).joinpath(self._default_filename)
+            if hasattr(resource, "read_text"):
+                _append_source("packaged_static", use_resources=True)
+        except Exception:
+            logger.debug("Packaged model resource unavailable for %s", self._default_filename)
+
+        _append_source("workspace_static", Path.cwd() / "conf" / self._default_filename)
+
+        return sources
+
+    def _load_from_source(self, source: RegistrySource) -> dict | None:
+        if source.use_resources:
             try:
                 resource = importlib.resources.files(self._resource_package).joinpath(self._default_filename)
                 if hasattr(resource, "read_text"):
@@ -106,36 +140,52 @@ class CustomModelRegistryBase:
                 else:  # pragma: no cover - legacy Python fallback
                     with resource.open("r", encoding="utf-8") as handle:
                         config_text = handle.read()
-                data = json.loads(config_text)
+                payload = json.loads(config_text)
             except FileNotFoundError:
                 logger.debug("Packaged %s not found", self._default_filename)
-                return {"models": []}
+                return None
             except Exception as exc:
                 logger.warning("Failed to read packaged %s: %s", self._default_filename, exc)
-                return {"models": []}
-            return data or {"models": []}
+                return None
+            return payload if isinstance(payload, dict) else {"models": []}
 
-        if not self.config_path:
-            raise FileNotFoundError("Registry configuration path is not set")
+        if not source.path:
+            return None
 
-        if not self.config_path.exists():
-            logger.debug("Model registry config not found at %s", self.config_path)
-            if self.config_path == self._default_path:
-                fallback = Path.cwd() / "conf" / self._default_filename
-                if fallback != self.config_path and fallback.exists():
-                    logger.debug("Falling back to %s", fallback)
-                    self.config_path = fallback
-                else:
-                    return {"models": []}
-            else:
-                return {"models": []}
+        if not source.path.exists() or not source.path.is_file():
+            return None
 
-        data = read_json_file(str(self.config_path))
-        return data or {"models": []}
+        payload = read_json_file(str(source.path))
+        return payload if isinstance(payload, dict) else None
+
+    def _load_config_data(self) -> dict:
+        for source in self._sources:
+            payload = self._load_from_source(source)
+            if payload is None:
+                continue
+
+            self._use_resources = source.use_resources
+            self._active_source_label = source.label
+            self.config_path = source.path
+            return payload or {"models": []}
+
+        self._use_resources = False
+        self._active_source_label = "missing"
+        self.config_path = None
+        logger.debug("No model registry source available for %s", self._default_filename)
+        return {"models": []}
 
     @property
     def use_resources(self) -> bool:
         return self._use_resources
+
+    def get_source_metadata(self) -> dict[str, str]:
+        """Return the last source used when loading registry data."""
+
+        metadata = {"source_label": self._active_source_label}
+        if self.config_path is not None:
+            metadata["path"] = str(self.config_path)
+        return metadata
 
     def _parse_models(self, data: dict) -> Iterable[ModelCapabilities | None]:
         for raw in data.get("models", []):
@@ -154,6 +204,11 @@ class CustomModelRegistryBase:
             entry["aliases"] = [alias.strip() for alias in aliases.split(",") if alias.strip()]
 
         entry.setdefault("friendly_name", self._default_friendly_name(model_name))
+        entry.setdefault("display_name", entry["friendly_name"])
+        entry.setdefault("model_id", model_name)
+        entry.setdefault("provider_type", self._provider_default().value)
+        if not isinstance(entry.get("release_metadata"), dict):
+            entry["release_metadata"] = {}
 
         temperature_hint = entry.get("temperature_constraint")
         if isinstance(temperature_hint, str):
@@ -171,7 +226,16 @@ class CustomModelRegistryBase:
             raise ValueError("Unsupported fields in model configuration: " + ", ".join(sorted(unknown_keys)))
 
         capability, extras = self._finalise_entry(entry)
-        capability.provider = self._provider_default()
+        if not isinstance(capability.provider, ProviderType):
+            try:
+                capability.provider = ProviderType(str(capability.provider).strip().lower())
+            except Exception:
+                capability.provider = self._provider_default()
+        capability.provider_type = capability.provider.value
+        if not capability.model_id:
+            capability.model_id = capability.model_name
+        if not capability.display_name:
+            capability.display_name = capability.friendly_name or capability.model_name
         self._extras[capability.model_name] = extras or {}
         return capability
 
