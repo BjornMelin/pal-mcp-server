@@ -81,8 +81,8 @@ DEFAULT_MODEL=auto  # Claude picks best model for each task (recommended)
 
   | Provider | Canonical Models | Notable Aliases |
   |----------|-----------------|-----------------|
-  | OpenAI | `gpt-5.2`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5`, `gpt-5.2-pro`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-codex`, `gpt-4.1`, `o3`, `o3-mini`, `o3-pro`, `o4-mini` | `gpt5.2`, `gpt-5.2`, `5.2`, `gpt5.1-codex`, `codex-5.1`, `codex-mini`, `gpt5`, `gpt5pro`, `mini`, `nano`, `codex`, `o3mini`, `o3pro`, `o4mini` |
-  | Gemini | `gemini-3-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `pro`, `flash`, `flash2.5`, `flash-2.0`, `flashlite` |
+  | OpenAI | `gpt-5.2`, `gpt-5`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5.2-pro`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-codex`, `gpt-4.1`, `o3`, `o3-mini`, `o3-pro`, `o4-mini` | `gpt5.2`, `gpt-5.2`, `5.2`, `gpt5` (`gpt-5`), `gpt5.1-codex`, `codex-5.1`, `codex-mini`, `gpt5pro`, `mini`, `nano`, `codex`, `o3mini`, `o3pro`, `o4mini` |
+  | Gemini | `gemini-3.1-pro-preview`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `pro` (`gemini-3.1-pro-preview`), `gemini-pro-2.5` (`gemini-2.5-pro`), `flash`, `flash2.5`, `flash-2.0`, `flashlite` |
   | X.AI | `grok-4`, `grok-4.1-fast` | `grok`, `grok4`, `grok-4.1-fast-reasoning` |
   | OpenRouter | See `conf/openrouter_models.json` for the continually evolving catalogue | e.g., `opus`, `sonnet`, `flash`, `pro`, `mistral` |
   | Custom | User-managed entries such as `llama3.2` | Define your own aliases per entry |
@@ -99,7 +99,7 @@ The `allow_code_generation` capability enables models to generate complete, prod
 
 ```json
 {
-  "model_name": "gpt-5",
+  "model_name": "gpt-5.2",
   "allow_code_generation": true,
   ...
 }
@@ -107,7 +107,7 @@ The `allow_code_generation` capability enables models to generate complete, prod
 
 **When to Enable:**
 
-- **Enable for**: Models MORE capable than your primary CLI's model (e.g., GPT-5.1 Codex, GPT-5.2 Pro, GPT-5.2 when using Claude Code with Sonnet 4.5)
+- **Enable for**: Models MORE capable than your primary CLI's model (e.g., GPT-5.1 Codex, GPT-5.2 Pro, GPT-5.2 when using Claude Code with Sonnet 4.6)
 - **Purpose**: Get complete implementations from a more powerful reasoning model that your primary CLI can then review and apply
 - **Use case**: Large-scale implementations, major refactoring, complete module creation
 
@@ -126,7 +126,7 @@ The `allow_code_generation` capability enables models to generate complete, prod
 {
   "models": [
     {
-      "model_name": "gpt-5",
+      "model_name": "gpt-5.2",
       "allow_code_generation": true,
       "intelligence_score": 18,
       ...
@@ -151,8 +151,8 @@ The `allow_code_generation` capability enables models to generate complete, prod
 
 **Default Thinking Mode for ThinkDeep:**
 ```env
-# Only applies to models supporting extended thinking (e.g., Gemini 3.0 Pro)
-# Starting with Gemini 3.0 Pro, `thinking level` should stick to `high`
+# Only applies to models supporting extended thinking (e.g., Gemini 3.1 Pro Preview)
+# Starting with Gemini 3.1 Pro Preview, `thinking level` should stick to `high`
 
 DEFAULT_THINKING_MODE_THINKDEEP=high
 
@@ -187,7 +187,7 @@ OPENROUTER_ALLOWED_MODELS=opus,sonnet,mistral
 
 **Supported Model Names:** The names/aliases listed in the JSON manifests above are the authoritative source. Keep in mind:
 
-- Aliases are case-insensitive and defined per entry (for example, `mini` maps to `gpt-5-mini` by default, while `flash` maps to `gemini-2.5-flash`).
+- Aliases are case-insensitive and defined per entry (for example, `mini` maps to `gpt-5-mini` by default, while `flash` maps to `gemini-3-flash-preview`).
 - When you override the manifest files you can add or remove aliases as needed; restriction policies (`*_ALLOWED_MODELS`) automatically pick up those changes.
 - Models omitted from a manifest fall back to generic capability detection (where supported) and may have limited feature metadata.
 
@@ -223,6 +223,28 @@ OPENROUTER_MODELS_CONFIG_PATH=/path/to/openrouter_models.json
 DIAL_MODELS_CONFIG_PATH=/path/to/dial_models.json
 CUSTOM_MODELS_CONFIG_PATH=/path/to/custom_models.json
 ```
+
+**Automated Model Catalog Control Plane:**
+```env
+# Enable merged model catalog generation at startup
+MODEL_CATALOG_ENABLED=true
+MODEL_CATALOG_ENABLE_DISCOVERY=true
+MODEL_CATALOG_ENABLE_CACHE=true
+MODEL_CATALOG_QUARANTINE_ENABLED=true
+
+# Refresh and timeout controls
+MODEL_CATALOG_REFRESH_INTERVAL_SECONDS=21600
+MODEL_CATALOG_DISCOVERY_TIMEOUT_MS=3000
+
+# Local generated artifacts
+MODEL_CATALOG_GENERATED_DIR=/absolute/path/to/generated/catalog
+MODEL_CATALOG_CACHE_PATH=/absolute/path/to/model_catalog_cache.json
+```
+
+- The runtime catalog path is intentionally simple: static seeds + local cache + provider discovery.
+- Set `MODEL_CATALOG_ENABLE_CACHE=false` to disable both cache reads and cache writes.
+- Unknown newly discovered models are marked as quarantined and excluded from auto-mode fallback until curated/ranked.
+- Explicit model requests can still route through generic OpenRouter/Vercel provider/model IDs when supported.
 
 **Conversation Settings:**
 ```env
