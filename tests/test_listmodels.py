@@ -66,7 +66,7 @@ class TestListModelsTool:
             # Check Gemini shows as configured
             assert "Google Gemini ✅" in content
             assert "`flash` → `gemini-3-flash-preview`" in content  # flash now points to Gemini 3 Flash
-            assert "`pro` → `gemini-3-pro-preview`" in content
+            assert "`pro` → `gemini-3.1-pro-preview`" in content
             assert "1M context" in content
             assert "Supports structured code generation" in content
 
@@ -143,10 +143,27 @@ class TestListModelsTool:
         response = json.loads(result[0].text)
         content = response["content"]
 
+        assert "## Catalog Snapshot" in content
+
         # Check for usage tips
         assert "**Usage Tips**:" in content
         assert "Use model aliases" in content
         assert "auto mode" in content
+
+    @pytest.mark.asyncio
+    async def test_catalog_status_failure_is_logged(self, tool):
+        with (
+            patch("utils.model_catalog.get_model_catalog_status", side_effect=RuntimeError("status failure")),
+            patch("tools.listmodels.logger.exception") as mock_logger_exception,
+        ):
+            result = await tool.execute({})
+
+        response = json.loads(result[0].text)
+        content = response["content"]
+
+        assert "## Catalog Snapshot" in content
+        assert "Source mode: `unknown`" in content
+        mock_logger_exception.assert_called_once()
 
     def test_model_category(self, tool):
         """Test that tool uses FAST_RESPONSE category"""

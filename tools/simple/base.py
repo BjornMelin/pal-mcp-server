@@ -12,6 +12,7 @@ and inherit all the conversation, file processing, and model handling
 capabilities from BaseTool.
 """
 
+import logging
 from abc import abstractmethod
 from typing import Any, Optional
 
@@ -229,7 +230,13 @@ class SimpleTool(BaseTool):
         except AttributeError:
             return None
 
-    def get_provider_thinking_mode(self, provider: Any, capabilities: Any, thinking_mode: Optional[str], logger) -> Optional[str]:
+    def get_provider_thinking_mode(
+        self,
+        provider: Any,
+        capabilities: Any,
+        thinking_mode: Optional[str],
+        logger: logging.Logger,
+    ) -> Optional[str]:
         """Return thinking_mode only when both model metadata and provider implementation support it."""
         if thinking_mode is None or not capabilities.supports_extended_thinking:
             return None

@@ -52,11 +52,12 @@ The curated defaults in `conf/openrouter_models.json` include popular entries su
 
 | Alias | Canonical Model | Highlights |
 |-------|-----------------|------------|
-| `opus`, `claude-opus` | `anthropic/claude-opus-4.1` | Flagship Claude reasoning model with vision |
-| `sonnet`, `sonnet4.5` | `anthropic/claude-sonnet-4.5` | Balanced Claude with high context window |
+| `opus`, `claude-opus` | `anthropic/claude-opus-4.5` | Flagship Claude reasoning model with vision |
+| `sonnet`, `sonnet4.6` | `anthropic/claude-sonnet-4.6` | Default Sonnet alias (latest recommended) |
+| `sonnet4.5` | `anthropic/claude-sonnet-4.5` | 200K-context Sonnet release for explicit version pinning |
 | `haiku` | `anthropic/claude-3.5-haiku` | Fast Claude option with vision |
-| `pro`, `gemini` | `google/gemini-2.5-pro` | Frontier Gemini with extended thinking |
-| `flash` | `google/gemini-2.5-flash` | Ultra-fast Gemini with vision |
+| `pro`, `gemini` | `google/gemini-3.1-pro-preview` | Frontier Gemini with extended thinking |
+| `flash` | `google/gemini-3-flash-preview` | Default Flash alias for fast multimodal tasks |
 | `mistral` | `mistralai/mistral-large-2411` | Frontier Mistral (text only) |
 | `llama3` | `meta-llama/llama-3-70b` | Large open-weight text model |
 | `deepseek-r1` | `deepseek/deepseek-r1-0528` | DeepSeek reasoning model |
@@ -192,7 +193,7 @@ CUSTOM_MODEL_NAME=your-loaded-model
 # OpenRouter models:
 "Use opus for deep analysis"         # → anthropic/claude-opus-4
 "Use sonnet to review this code"     # → anthropic/claude-sonnet-4
-"Use pro via pal to analyze this"    # → google/gemini-2.5-pro
+"Use pro via pal to analyze this"    # → google/gemini-3.1-pro-preview
 "Use gpt4o via pal to analyze this"  # → openai/gpt-4o
 "Use mistral via pal to optimize"    # → mistral/mistral-large
 

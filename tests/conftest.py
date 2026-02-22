@@ -27,6 +27,7 @@ import utils.env as env_config  # noqa: E402
 
 # Ensure tests operate with runtime environment rather than .env overrides during imports
 env_config.reload_env({"PAL_MCP_FORCE_ENV_OVERRIDE": "false"})
+os.environ["DISABLED_TOOLS"] = ""
 
 # Set default model to a specific value for tests to avoid auto mode
 # This prevents all tests from failing due to missing model parameter
@@ -123,20 +124,18 @@ def mock_provider_availability(request, monkeypatch):
     # Ensure providers are registered (in case other tests cleared the registry)
     from providers.shared import ProviderType
 
-    registry = ModelProviderRegistry()
-
-    if ProviderType.GOOGLE not in registry._providers:
+    if not ModelProviderRegistry.is_provider_registered(ProviderType.GOOGLE, GeminiModelProvider):
         ModelProviderRegistry.register_provider(ProviderType.GOOGLE, GeminiModelProvider)
-    if ProviderType.OPENAI not in registry._providers:
+    if not ModelProviderRegistry.is_provider_registered(ProviderType.OPENAI, OpenAIModelProvider):
         ModelProviderRegistry.register_provider(ProviderType.OPENAI, OpenAIModelProvider)
-    if ProviderType.XAI not in registry._providers:
+    if not ModelProviderRegistry.is_provider_registered(ProviderType.XAI, XAIModelProvider):
         ModelProviderRegistry.register_provider(ProviderType.XAI, XAIModelProvider)
 
     # Ensure CUSTOM provider is registered if needed for integration tests
     if (
         os.getenv("CUSTOM_API_URL")
         and "test_prompt_regression.py" in os.getenv("PYTEST_CURRENT_TEST", "")
-        and ProviderType.CUSTOM not in registry._providers
+        and not ModelProviderRegistry.is_provider_registered(ProviderType.CUSTOM)
     ):
         from providers.custom import CustomProvider
 
@@ -178,17 +177,25 @@ def mock_provider_availability(request, monkeypatch):
 @pytest.fixture(autouse=True)
 def clear_model_restriction_env(monkeypatch):
     """Ensure per-test isolation from user-defined model restriction env vars."""
+    import utils.model_restrictions
+
+    utils.model_restrictions._restriction_service = None
 
     restriction_vars = [
         "OPENAI_ALLOWED_MODELS",
         "GOOGLE_ALLOWED_MODELS",
         "XAI_ALLOWED_MODELS",
         "OPENROUTER_ALLOWED_MODELS",
+        "VERCEL_GATEWAY_ALLOWED_MODELS",
         "DIAL_ALLOWED_MODELS",
     ]
 
     for var in restriction_vars:
         monkeypatch.delenv(var, raising=False)
+
+    yield
+
+    utils.model_restrictions._restriction_service = None
 
 
 @pytest.fixture(autouse=True)
@@ -198,6 +205,7 @@ def disable_force_env_override(monkeypatch):
     # Prevent .env-loaded DISABLED_TOOLS from disabling tools in test runs.
     monkeypatch.setenv("DISABLED_TOOLS", "")
     monkeypatch.setenv("PAL_MCP_FORCE_ENV_OVERRIDE", "false")
+    monkeypatch.delenv("VERCEL_AI_GATEWAY_API_KEY", raising=False)
     env_config.reload_env({"PAL_MCP_FORCE_ENV_OVERRIDE": "false"})
     monkeypatch.setenv("DEFAULT_MODEL", "gemini-2.5-flash")
     monkeypatch.setenv("MAX_CONVERSATION_TURNS", "50")
@@ -219,3 +227,14 @@ def disable_force_env_override(monkeypatch):
         yield
     finally:
         env_config.reload_env()
+
+
+@pytest.fixture(autouse=True)
+def clear_provider_instance_cache():
+    """Prevent provider instances from leaking env-derived state across tests."""
+
+    from providers.registry import ModelProviderRegistry
+
+    ModelProviderRegistry.clear_cache()
+    yield
+    ModelProviderRegistry.clear_cache()

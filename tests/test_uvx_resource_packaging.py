@@ -90,7 +90,12 @@ class TestUvxPathResolution:
                     return True
                 return original_exists(path_self)
 
-            with patch("pathlib.Path.cwd", return_value=temp_dir), patch("pathlib.Path.exists", fake_exists):
+            with (
+                patch.dict("os.environ", {}, clear=True),
+                patch.dict("utils.env._RUNTIME_OVERRIDES", {}, clear=True),
+                patch("pathlib.Path.cwd", return_value=temp_dir),
+                patch("pathlib.Path.exists", fake_exists),
+            ):
                 registry = OpenRouterModelRegistry()
 
             assert not registry.use_resources

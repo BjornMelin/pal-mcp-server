@@ -316,12 +316,23 @@ class VersionTool(BaseTool):
             provider_types = [
                 ProviderType.GOOGLE,
                 ProviderType.OPENAI,
+                ProviderType.AZURE,
                 ProviderType.XAI,
                 ProviderType.DIAL,
+                ProviderType.VERCEL_GATEWAY,
                 ProviderType.OPENROUTER,
                 ProviderType.CUSTOM,
             ]
-            provider_names = ["Google Gemini", "OpenAI", "X.AI", "DIAL", "OpenRouter", "Custom/Local"]
+            provider_names = [
+                "Google Gemini",
+                "OpenAI",
+                "Azure OpenAI",
+                "X.AI",
+                "DIAL",
+                "Vercel AI Gateway",
+                "OpenRouter",
+                "Custom/Local",
+            ]
 
             for provider_type, provider_name in zip(provider_types, provider_names):
                 provider = ModelProviderRegistry.get_provider(provider_type)
@@ -341,6 +352,29 @@ class VersionTool(BaseTool):
         except Exception as e:
             logger.warning(f"Error checking provider configuration: {e}")
             output_lines.append("\n\n**Providers**: Error checking configuration")
+
+        try:
+            from utils.model_catalog import get_model_catalog_status
+
+            catalog_status = get_model_catalog_status()
+            if catalog_status.get("initialized"):
+                output_lines.append("\n\n**Model Catalog**:")
+                output_lines.append(f"- Enabled: {catalog_status.get('enabled', False)}")
+                output_lines.append(f"- Source mode: {catalog_status.get('source_mode', 'unknown')}")
+                output_lines.append(f"- Fallback mode: {catalog_status.get('fallback_mode', 'none')}")
+                output_lines.append(f"- Merged models: {catalog_status.get('merged_models', 0)}")
+                output_lines.append(f"- Discovery enabled: {catalog_status.get('discovery_enabled', False)}")
+                output_lines.append(f"- Discovered models (last run): {catalog_status.get('discovered_models', 0)}")
+                output_lines.append(
+                    f"- Discovery errors: {', '.join(catalog_status.get('discovery_errors', [])) or 'none'}"
+                )
+                output_lines.append(f"- Last refresh: {catalog_status.get('last_updated_utc', 'unknown')}")
+                output_lines.append(
+                    f"- Periodic refresh: {catalog_status.get('refresh_task_running', False)} "
+                    f"(interval={catalog_status.get('refresh_interval_seconds', 0)}s)"
+                )
+        except Exception as e:
+            logger.debug(f"Error checking model catalog status: {e}")
 
         output_lines.append("")
 

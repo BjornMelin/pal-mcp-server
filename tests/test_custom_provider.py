@@ -215,9 +215,11 @@ class TestCustomProviderRegistration:
             utils.model_restrictions._restriction_service = None
             custom_provider = custom_provider_factory()
             openrouter_provider = OpenRouterProvider(api_key="test-openrouter-key")
+            openrouter_models = openrouter_provider.get_capabilities_by_rank()
 
             assert not custom_provider.validate_model_name("llama")
-            assert openrouter_provider.validate_model_name("llama")
+            assert openrouter_models
+            assert openrouter_provider.validate_model_name(openrouter_models[0][0])
 
 
 class TestConfigureProvidersFunction:
@@ -307,6 +309,29 @@ class TestConfigureProvidersFunction:
             available = ModelProviderRegistry.get_available_providers()
             assert ProviderType.OPENROUTER in available
             assert ProviderType.CUSTOM in available
+
+    def test_configure_providers_vercel_gateway_only(self):
+        """Test configure_providers with only Vercel AI Gateway configured."""
+        from server import configure_providers
+
+        with patch.dict(
+            os.environ,
+            {
+                "VERCEL_AI_GATEWAY_API_KEY": "test-vercel-key",
+                "GEMINI_API_KEY": "",
+                "OPENAI_API_KEY": "",
+                "OPENROUTER_API_KEY": "",
+                "XAI_API_KEY": "",
+                "CUSTOM_API_URL": "",
+            },
+            clear=True,
+        ):
+            configure_providers()
+
+            available = ModelProviderRegistry.get_available_providers()
+            assert ProviderType.VERCEL_GATEWAY in available
+            assert ProviderType.OPENROUTER not in available
+            assert ProviderType.CUSTOM not in available
 
     def test_configure_providers_no_valid_keys(self):
         """Test configure_providers raises error when no valid API keys."""

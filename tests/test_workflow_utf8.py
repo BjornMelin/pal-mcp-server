@@ -6,7 +6,7 @@ and the generation of properly encoded JSON responses.
 import json
 import os
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from tools.analyze import AnalyzeTool
 from tools.codereview import CodeReviewTool
@@ -76,7 +76,7 @@ class TestWorkflowToolsUTF8(unittest.IsolatedAsyncioTestCase):
         mock_provider = Mock()
         mock_provider.get_provider_type.return_value = Mock(value="test")
         mock_provider.get_capabilities.return_value = Mock(supports_extended_thinking=False)
-        mock_provider.generate_content = AsyncMock(
+        mock_provider.generate_content = Mock(
             return_value=Mock(
                 content=json.dumps(
                     {
@@ -88,7 +88,7 @@ class TestWorkflowToolsUTF8(unittest.IsolatedAsyncioTestCase):
                 usage={},
                 model_name="flash",
                 metadata={},
-            )
+            ),
         )
         # Use the same provider for both contexts
         mock_get_provider.return_value = mock_provider
@@ -133,7 +133,7 @@ class TestWorkflowToolsUTF8(unittest.IsolatedAsyncioTestCase):
         mock_provider = Mock()
         mock_provider.get_provider_type.return_value = Mock(value="test")
         mock_provider.get_capabilities.return_value = Mock(supports_extended_thinking=False)
-        mock_provider.generate_content = AsyncMock(
+        mock_provider.generate_content = Mock(
             return_value=Mock(
                 content=json.dumps(
                     {
@@ -160,7 +160,7 @@ class TestWorkflowToolsUTF8(unittest.IsolatedAsyncioTestCase):
                 usage={},
                 model_name="test-model",
                 metadata={},
-            )
+            ),
         )
         mock_get_provider.return_value = mock_provider
 
@@ -206,7 +206,7 @@ class TestWorkflowToolsUTF8(unittest.IsolatedAsyncioTestCase):
         mock_provider = Mock()
         mock_provider.get_provider_type.return_value = Mock(value="test")
         mock_provider.get_capabilities.return_value = Mock(supports_extended_thinking=False)
-        mock_provider.generate_content = AsyncMock(
+        mock_provider.generate_content = Mock(
             return_value=Mock(
                 content=json.dumps(
                     {
@@ -229,7 +229,7 @@ class TestWorkflowToolsUTF8(unittest.IsolatedAsyncioTestCase):
                 usage={},
                 model_name="test-model",
                 metadata={},
-            )
+            ),
         )
         mock_get_provider.return_value = mock_provider
 

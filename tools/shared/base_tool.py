@@ -106,6 +106,13 @@ class BaseTool(ABC):
             logger.debug("Created cached Custom registry instance")
         return BaseTool._custom_registry_cache
 
+    @classmethod
+    def clear_registry_caches(cls) -> None:
+        """Clear cached model registries used for schema/model enumeration."""
+
+        BaseTool._openrouter_registry_cache = None
+        BaseTool._custom_registry_cache = None
+
     def __init__(self):
         # Cache tool metadata at initialization to avoid repeated calls
         self.name = self.get_name()
@@ -475,6 +482,7 @@ class BaseTool(ABC):
             "GOOGLE_ALLOWED_MODELS": "Google",
             "XAI_ALLOWED_MODELS": "X.AI",
             "OPENROUTER_ALLOWED_MODELS": "OpenRouter",
+            "VERCEL_GATEWAY_ALLOWED_MODELS": "Vercel Gateway",
             "DIAL_ALLOWED_MODELS": "DIAL",
         }
 

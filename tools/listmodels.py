@@ -7,6 +7,7 @@ It shows which providers are configured and what models can be used.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from mcp.types import TextContent
@@ -19,6 +20,53 @@ from tools.shared.base_tool import BaseTool
 from utils.env import get_env
 
 logger = logging.getLogger(__name__)
+
+
+def _format_catalog_age(last_updated_utc: str | None) -> str:
+    if not last_updated_utc:
+        return "unknown"
+
+    try:
+        normalized = last_updated_utc.replace("Z", "+00:00")
+        updated_at = datetime.fromisoformat(normalized)
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return "unknown"
+
+    age_seconds = max(int((datetime.now(timezone.utc) - updated_at).total_seconds()), 0)
+    if age_seconds < 60:
+        return f"{age_seconds}s"
+    if age_seconds < 3600:
+        return f"{age_seconds // 60}m"
+    if age_seconds < 86400:
+        return f"{age_seconds // 3600}h"
+    return f"{age_seconds // 86400}d"
+
+
+def _catalog_metadata_lines(capabilities, *, description: str = "") -> list[str]:
+    lifecycle = getattr(capabilities, "lifecycle", "active") or "active"
+    source_tag = getattr(capabilities, "catalog_source", "static") or "unknown"
+    quarantine = bool(getattr(capabilities, "quarantine", False)) or str(description).startswith("[QUARANTINE]")
+
+    metadata_lines = [
+        f"  - Lifecycle: {lifecycle} | Quarantine: {str(quarantine).lower()} | Source: {source_tag}",
+    ]
+
+    release_metadata = getattr(capabilities, "release_metadata", None)
+    if isinstance(release_metadata, dict):
+        release_date = release_metadata.get("release_date")
+        source_url = release_metadata.get("source_url")
+        if release_date or source_url:
+            date_part = release_date or "unknown"
+            source_part = source_url or "unknown"
+            metadata_lines.append(f"  - Release metadata: date={date_part} | source={source_part}")
+
+    counterpart = getattr(capabilities, "openrouter_counterpart", None)
+    if counterpart:
+        metadata_lines.append(f"  - OpenRouter counterpart: `{counterpart}`")
+
+    return metadata_lines
 
 
 class ListModelsTool(BaseTool):
@@ -84,9 +132,24 @@ class ListModelsTool(BaseTool):
         """
         from providers.registry import ModelProviderRegistry
         from providers.shared import ProviderType
+        from utils.model_catalog import get_model_catalog_status
         from utils.model_restrictions import get_restriction_service
 
         output_lines = ["# Available AI Models\n"]
+
+        catalog_status: dict[str, Any] = {}
+        try:
+            catalog_status = get_model_catalog_status()
+        except Exception:
+            logger.exception("Failed to load model catalog status for listmodels output")
+            catalog_status = {}
+
+        output_lines.append("## Catalog Snapshot")
+        output_lines.append(f"- Source mode: `{catalog_status.get('source_mode', 'unknown')}`")
+        output_lines.append(f"- Fallback mode: `{catalog_status.get('fallback_mode', 'none')}`")
+        output_lines.append(f"- Last refresh: `{catalog_status.get('last_updated_utc') or 'unknown'}`")
+        output_lines.append(f"- Catalog age: `{_format_catalog_age(catalog_status.get('last_updated_utc'))}`")
+        output_lines.append("")
 
         restriction_service = get_restriction_service()
         restricted_models_by_provider: dict[ProviderType, list[str]] = {}
@@ -103,6 +166,10 @@ class ListModelsTool(BaseTool):
             ProviderType.AZURE: {"name": "Azure OpenAI", "env_key": "AZURE_OPENAI_API_KEY"},
             ProviderType.XAI: {"name": "X.AI (Grok)", "env_key": "XAI_API_KEY"},
             ProviderType.DIAL: {"name": "AI DIAL", "env_key": "DIAL_API_KEY"},
+            ProviderType.VERCEL_GATEWAY: {
+                "name": "Vercel AI Gateway",
+                "env_key": "VERCEL_AI_GATEWAY_API_KEY",
+            },
         }
 
         def format_model_entry(provider, display_name: str) -> list[str]:
@@ -139,7 +206,12 @@ class ListModelsTool(BaseTool):
                 description = capabilities.description or "No description available"
             except AttributeError:
                 description = "No description available"
-            lines = [header, f"  - {context_str}", f"  - {description}"]
+            lines = [
+                header,
+                f"  - {context_str}",
+                f"  - {description}",
+            ]
+            lines.extend(_catalog_metadata_lines(capabilities, description=description))
             if capabilities.allow_code_generation:
                 lines.append("  - Supports structured code generation")
             return lines
@@ -189,6 +261,7 @@ class ListModelsTool(BaseTool):
 
                         output_lines.append(f"- `{model_name}` - {context_str}")
                         output_lines.append(f"  - {description}")
+                        output_lines.extend(_catalog_metadata_lines(capabilities, description=description))
                         if capabilities.allow_code_generation:
                             output_lines.append("  - Supports structured code generation")
 
@@ -257,6 +330,9 @@ class ListModelsTool(BaseTool):
 
                                 score = caps.get_effective_capability_rank()
                                 output_lines.append(f"- `{model_name}`{arrow} (score {score}, {suffix})")
+                                output_lines.extend(
+                                    _catalog_metadata_lines(caps, description=getattr(caps, "description", "") or "")
+                                )
 
                             allowed_set = restriction_service.get_allowed_models(ProviderType.OPENROUTER) or set()
                             if allowed_set:
@@ -298,6 +374,12 @@ class ListModelsTool(BaseTool):
                                         arrow = f" → `{config.model_name}`"
 
                                     output_lines.append(f"- `{alias}`{arrow} (score {rank}, {suffix})")
+                                    output_lines.extend(
+                                        _catalog_metadata_lines(
+                                            config,
+                                            description=getattr(config, "description", "") or "",
+                                        )
+                                    )
                                 else:
                                     output_lines.append(f"- `{alias}` (score {rank})")
                 else:
@@ -382,6 +464,7 @@ class ListModelsTool(BaseTool):
         output_lines.append("- In auto mode, the CLI Agent will select the best model for each task")
         output_lines.append("- Custom models are only available when CUSTOM_API_URL is set")
         output_lines.append("- OpenRouter provides access to many cloud models with one API key")
+        output_lines.append("- Vercel AI Gateway supports provider/model routing (e.g., `openai/gpt-5.2`)")
 
         # Format output
         content = "\n".join(output_lines)

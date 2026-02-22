@@ -18,6 +18,7 @@ _ENV_PATH = _PROJECT_ROOT / ".env"
 
 _DOTENV_VALUES: dict[str, str | None] = {}
 _FORCE_ENV_OVERRIDE = False
+_RUNTIME_OVERRIDES: dict[str, str | None] = {}
 
 
 def _read_dotenv_values() -> dict[str, str | None]:
@@ -66,11 +67,18 @@ def env_override_enabled() -> bool:
 def get_env(key: str, default: str | None = None) -> str | None:
     """Retrieve environment variables respecting PAL_MCP_FORCE_ENV_OVERRIDE."""
 
+    if key in _RUNTIME_OVERRIDES:
+        runtime_value = _RUNTIME_OVERRIDES[key]
+        return runtime_value if runtime_value is not None else default
+
     if env_override_enabled():
         if key in _DOTENV_VALUES:
             value = _DOTENV_VALUES[key]
             return value if value is not None else default
         return default
+
+    if key in os.environ:
+        return os.environ[key]
 
     return os.getenv(key, default)
 
@@ -87,6 +95,37 @@ def get_all_env() -> dict[str, str | None]:
     """Expose the loaded .env mapping for diagnostics/logging."""
 
     return dict(_DOTENV_VALUES)
+
+
+def set_runtime_env(key: str, value: str | None) -> None:
+    """Set a runtime override that takes precedence over .env/system values."""
+
+    _RUNTIME_OVERRIDES[key] = value
+
+
+def set_runtime_envs(values: Mapping[str, str | None]) -> None:
+    """Set multiple runtime overrides."""
+
+    for key, value in values.items():
+        _RUNTIME_OVERRIDES[key] = value
+
+
+def has_runtime_override(key: str) -> bool:
+    """Return True when a runtime override exists for the given key."""
+
+    return key in _RUNTIME_OVERRIDES
+
+
+def clear_runtime_env(key: str) -> None:
+    """Clear a runtime override."""
+
+    _RUNTIME_OVERRIDES.pop(key, None)
+
+
+def clear_all_runtime_env() -> None:
+    """Clear all runtime overrides."""
+
+    _RUNTIME_OVERRIDES.clear()
 
 
 @contextmanager
