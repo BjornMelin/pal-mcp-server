@@ -140,6 +140,37 @@ def test_merge_catalogs_cache_does_not_override_explicit_false_booleans() -> Non
     assert model["supports_temperature"] is False
 
 
+def test_merge_catalogs_cache_backfills_missing_boolean_false_values() -> None:
+    merged = merge_catalogs(
+        static_by_provider={
+            "openai": [
+                {
+                    "model_name": "o3",
+                    "friendly_name": "OpenAI O3",
+                    "intelligence_score": 9,
+                    "description": "static",
+                }
+            ]
+        },
+        cache_by_provider={
+            "openai": [
+                {
+                    "model_name": "o3",
+                    "friendly_name": "OpenAI O3",
+                    "intelligence_score": 9,
+                    "description": "cache",
+                    "supports_temperature": False,
+                }
+            ]
+        },
+        discovered_entries=[],
+        quarantine_enabled=True,
+    )
+
+    model = _find_model(merged["openai"], "o3")
+    assert model["supports_temperature"] is False
+
+
 def test_merge_catalogs_without_quarantine_keeps_new_models_active() -> None:
     merged = merge_catalogs(
         static_by_provider={},

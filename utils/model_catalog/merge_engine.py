@@ -262,6 +262,19 @@ def merge_catalogs(
     merged: dict[str, dict[str, dict[str, Any]]] = {}
     warning_seen: set[str] = set()
 
+    def coerce_optional_bool(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and value in (0, 1):
+            return bool(int(value))
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "1", "yes", "on"}:
+                return True
+            if normalized in {"false", "0", "no", "off"}:
+                return False
+        return None
+
     def upsert(provider_name: str, raw_entry: dict[str, Any], *, replace: bool, source: str) -> None:
         normalized = sanitize_capability_entry(raw_entry, provider_name, source=source)
         if not normalized:
@@ -340,9 +353,11 @@ def merge_catalogs(
         for key in bool_fields:
             if key not in cached:
                 continue
-            cached_value = bool(cached[key])
+            cached_value = coerce_optional_bool(cached[key])
+            if cached_value is None:
+                continue
             existing_value = existing.get(key)
-            if existing_value is None and cached_value:
+            if existing_value is None:
                 existing[key] = cached_value
 
         cached_release = cached.get("release_metadata")

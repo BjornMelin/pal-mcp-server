@@ -100,7 +100,7 @@ def divide(x, y):
                 "model": "flash",
             }
 
-            response2, _ = self.call_mcp_tool_direct("codereview", codereview_params)
+            response2, _ = self.call_mcp_tool("codereview", codereview_params)
             if not response2:
                 self.logger.error("  ❌ Step 2: codereview tool failed")
                 return False

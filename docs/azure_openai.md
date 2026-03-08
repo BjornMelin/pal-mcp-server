@@ -35,7 +35,7 @@ Azure models live in `conf/azure_models.json` (or the file pointed to by `AZURE_
     },
     {
       "model_name": "gpt-5.4",
-      "deployment": "prod-gpt54",
+      "deployment": "prod-gpt-5-4",
       "friendly_name": "Azure GPT-5.4",
       "intelligence_score": 19,
       "context_window": 1050000,
@@ -47,7 +47,7 @@ Azure models live in `conf/azure_models.json` (or the file pointed to by `AZURE_
     },
     {
       "model_name": "gpt-5.3-codex",
-      "deployment": "prod-gpt53-codex",
+      "deployment": "prod-gpt-5-3-codex",
       "friendly_name": "Azure GPT-5.3 Codex",
       "intelligence_score": 19,
       "context_window": 400000,
