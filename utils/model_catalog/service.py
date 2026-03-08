@@ -202,6 +202,13 @@ def _load_cached_catalog(
         # Backwards compatibility: caches written before fingerprint support remain valid.
         # Only enforce strict invalidation when a fingerprint exists and mismatches.
         if cached_fingerprint and cached_fingerprint != expected_static_fingerprint:
+            logger.warning(
+                "Invalidating model catalog cache at %s due to static manifest fingerprint mismatch "
+                "(expected=%s, cached=%s).",
+                cache_path,
+                expected_static_fingerprint,
+                cached_fingerprint,
+            )
             return {}
 
     providers = payload.get("providers")

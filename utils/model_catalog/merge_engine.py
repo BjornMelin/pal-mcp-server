@@ -342,7 +342,7 @@ def merge_catalogs(
                 continue
             cached_value = bool(cached[key])
             existing_value = existing.get(key)
-            if existing_value in (None, False, 0, "") and cached_value:
+            if existing_value is None and cached_value:
                 existing[key] = cached_value
 
         cached_release = cached.get("release_metadata")
