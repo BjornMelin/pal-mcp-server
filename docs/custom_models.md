@@ -52,7 +52,8 @@ The curated defaults in `conf/openrouter_models.json` include popular entries su
 
 | Alias | Canonical Model | Highlights |
 |-------|-----------------|------------|
-| `opus`, `claude-opus` | `anthropic/claude-opus-4.5` | Flagship Claude reasoning model with vision |
+| `opus`, `claude-opus` | `anthropic/claude-opus-4.5` | Stable Opus alias for pinned workflows |
+| `opus4.6`, `claude-opus-4.6` | `anthropic/claude-opus-4.6` | Latest Opus generation with 1M context |
 | `sonnet`, `sonnet4.6` | `anthropic/claude-sonnet-4.6` | Default Sonnet alias (latest recommended) |
 | `sonnet4.5` | `anthropic/claude-sonnet-4.5` | 200K-context Sonnet release for explicit version pinning |
 | `haiku` | `anthropic/claude-3.5-haiku` | Fast Claude option with vision |
@@ -61,7 +62,10 @@ The curated defaults in `conf/openrouter_models.json` include popular entries su
 | `mistral` | `mistralai/mistral-large-2411` | Frontier Mistral (text only) |
 | `llama3` | `meta-llama/llama-3-70b` | Large open-weight text model |
 | `deepseek-r1` | `deepseek/deepseek-r1-0528` | DeepSeek reasoning model |
+| `minimax-m2.5`, `m2.5` | `minimax/minimax-m2.5` | MiniMax long-context model |
 | `perplexity` | `perplexity/llama-3-sonar-large-32k-online` | Search-augmented model |
+| `gpt5.4`, `gpt-5.4`, `5.4` | `openai/gpt-5.4` | New GPT-5.4 flagship via OpenRouter |
+| `gpt5.3-codex`, `codex-5.3` | `openai/gpt-5.3-codex` | New Codex-series coding model |
 | `gpt5.2`, `gpt-5.2`, `5.2` | `openai/gpt-5.2` | Flagship GPT-5.2 with reasoning and vision |
 | `gpt5.1-codex`, `codex-5.1` | `openai/gpt-5.1-codex` | Agentic coding specialization (Responses API) |
 | `codex-mini`, `gpt5.1-codex-mini` | `openai/gpt-5.1-codex-mini` | Cost-efficient Codex variant with streaming |
@@ -84,15 +88,17 @@ Native catalogues (`conf/openai_models.json`, `conf/gemini_models.json`, `conf/x
 
 ### Latest OpenAI releases
 
-OpenAI's November 13, 2025 drop introduced `gpt-5.1-codex` and `gpt-5.1-codex-mini`, while the flagship base model is now `gpt-5.2`. All of these ship in `conf/openai_models.json`:
+The current OpenAI manifest ships `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.2`, `gpt-5.1-codex`, and `gpt-5.1-codex-mini` in `conf/openai_models.json`:
 
 | Model | Highlights | Notes |
 |-------|------------|-------|
+| `gpt-5.4` | 1.05M context, 128K output, multimodal IO | Streaming enabled; latest flagship default for explicit selection |
+| `gpt-5.3-codex` | 400K context coding-specialized Codex model | Responses API routing (`use_openai_response_api=true`), streaming disabled |
 | `gpt-5.2` | 400K context, 128K output, multimodal IO, configurable reasoning effort | Streaming enabled; use for balanced agent/coding flows |
 | `gpt-5.1-codex` | Responses-only agentic coding version of GPT-5.1 | Streaming disabled; `use_openai_response_api=true`; `allow_code_generation=true` |
 | `gpt-5.1-codex-mini` | Cost-efficient Codex variant | Streaming enabled, retains 400K context and code-generation flag |
 
-These entries include pricing-friendly aliases (`gpt5.2`, `codex-5.1`, `codex-mini`) plus updated capability flags (`supports_extended_thinking`, `allow_code_generation`). Copy the manifest if you operate custom deployment names so downstream providers inherit the same metadata.
+These entries include pricing-friendly aliases (`gpt5.4`, `codex-5.3`, `gpt5.2`, `codex-5.1`, `codex-mini`) plus updated capability flags (`supports_extended_thinking`, `allow_code_generation`). Copy the manifest if you operate custom deployment names so downstream providers inherit the same metadata.
 
 Because providers load the manifests on import, you can tweak capabilities without touching Python. Restart the server after editing the JSON files so changes are picked up.
 
@@ -297,3 +303,4 @@ Popular models available through OpenRouter:
 - **"Model not found"**: Check exact model name at openrouter.ai/models
 - **"Insufficient credits"**: Add credits to your OpenRouter account
 - **"Model not available"**: Check your OpenRouter dashboard for model access permissions
+- **"Model exists but listmodels does not show it"**: add it to the appropriate static manifest (`conf/openrouter_models.json`, `conf/openai_models.json`, or Azure deployment manifest), then refresh/restart. Fingerprinted cache snapshots are invalidated when manifests change; legacy snapshots without fingerprints remain readable for compatibility.

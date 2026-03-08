@@ -20,7 +20,7 @@ def _find_model(entries: list[dict], model_name: str) -> dict:
     raise AssertionError(f"Model not found: {model_name}")
 
 
-def test_merge_catalogs_cache_precedence_and_discovery_enrichment() -> None:
+def test_merge_catalogs_static_precedence_and_discovery_enrichment() -> None:
     merged = merge_catalogs(
         static_by_provider={
             "openai": [
@@ -61,14 +61,51 @@ def test_merge_catalogs_cache_precedence_and_discovery_enrichment() -> None:
     openai_entries = merged["openai"]
     gpt5 = _find_model(openai_entries, "gpt-5")
 
-    assert gpt5["intelligence_score"] == 11
-    assert gpt5["description"] == "cache"
+    assert gpt5["intelligence_score"] == 10
+    assert gpt5["description"] == "static"
     assert gpt5["context_window"] == 400000
     assert gpt5["max_output_tokens"] == 128000
 
     new_model = _find_model(openai_entries, "gpt-5-very-new")
     assert new_model["description"].startswith(QUARANTINE_PREFIX)
     assert is_quarantine_description(new_model["description"])
+
+
+def test_merge_catalogs_cache_enriches_existing_static_model_without_overrides() -> None:
+    merged = merge_catalogs(
+        static_by_provider={
+            "openai": [
+                {
+                    "model_name": "gpt-5",
+                    "friendly_name": "OpenAI GPT-5",
+                    "intelligence_score": 10,
+                    "description": "static",
+                }
+            ]
+        },
+        cache_by_provider={
+            "openai": [
+                {
+                    "model_name": "gpt-5",
+                    "friendly_name": "OpenAI GPT-5",
+                    "intelligence_score": 19,
+                    "description": "cache",
+                    "context_window": 400000,
+                    "max_output_tokens": 128000,
+                    "supports_function_calling": True,
+                }
+            ]
+        },
+        discovered_entries=[],
+        quarantine_enabled=True,
+    )
+
+    gpt5 = _find_model(merged["openai"], "gpt-5")
+    assert gpt5["intelligence_score"] == 10
+    assert gpt5["description"] == "static"
+    assert gpt5["context_window"] == 400000
+    assert gpt5["max_output_tokens"] == 128000
+    assert gpt5["supports_function_calling"] is True
 
 
 def test_merge_catalogs_without_quarantine_keeps_new_models_active() -> None:
@@ -144,7 +181,7 @@ def test_materialize_provider_manifests_contains_generation_metadata() -> None:
     assert openrouter_payload["models"][0]["model_name"] == "anthropic/claude-sonnet-4.5"
 
 
-def test_merge_catalogs_emits_warnings_for_cache_overrides() -> None:
+def test_merge_catalogs_keeps_static_metadata_when_cache_differs() -> None:
     warnings: list[str] = []
     merged = merge_catalogs(
         static_by_provider={
@@ -172,9 +209,8 @@ def test_merge_catalogs_emits_warnings_for_cache_overrides() -> None:
         warnings_out=warnings,
     )
 
-    assert _find_model(merged["openai"], "gpt-5")["intelligence_score"] == 19
-    assert warnings
-    assert "replaced by cache" in warnings[0]
+    assert _find_model(merged["openai"], "gpt-5")["intelligence_score"] == 10
+    assert warnings == []
 
 
 def test_merge_catalogs_preserves_azure_deployment_fields() -> None:
@@ -206,7 +242,7 @@ def test_merge_catalogs_preserves_azure_deployment_fields() -> None:
     )
 
     model = _find_model(merged["azure"], "gpt-4o")
-    assert model["deployment"] == "azure-gpt4o-cache"
+    assert model["deployment"] == "azure-gpt4o-static"
 
 
 def test_materialize_provider_manifests_keeps_azure_deployment_fields() -> None:

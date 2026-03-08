@@ -32,6 +32,30 @@ Azure models live in `conf/azure_models.json` (or the file pointed to by `AZURE_
       "temperature_constraint": "fixed",
       "aliases": ["gpt4o-eu"],
       "use_openai_response_api": false
+    },
+    {
+      "model_name": "gpt-5.4",
+      "deployment": "prod-gpt54",
+      "friendly_name": "Azure GPT-5.4",
+      "intelligence_score": 19,
+      "context_window": 1050000,
+      "max_output_tokens": 128000,
+      "supports_temperature": true,
+      "temperature_constraint": "fixed",
+      "aliases": ["gpt54-azure"],
+      "use_openai_response_api": false
+    },
+    {
+      "model_name": "gpt-5.3-codex",
+      "deployment": "prod-gpt53-codex",
+      "friendly_name": "Azure GPT-5.3 Codex",
+      "intelligence_score": 19,
+      "context_window": 400000,
+      "max_output_tokens": 128000,
+      "supports_temperature": true,
+      "temperature_constraint": "fixed",
+      "aliases": ["codex53-azure"],
+      "use_openai_response_api": true
     }
   ]
 }
@@ -41,6 +65,7 @@ Tips:
 
 - Copy `conf/azure_models.json` into your repo and commit it, or point `AZURE_MODELS_CONFIG_PATH` at a custom path.
 - Add one object per deployment. Aliases are optional but help when you want short names like `gpt4o-eu`.
+- For GPT-5+ models, keep `model_name` as the upstream model ID (`gpt-5.4`, `gpt-5.3-codex`) and map each to your real Azure deployment name.
 - All capability fields are optional except `model_name`, `deployment`, and `friendly_name`. Anything you omit falls back to conservative defaults.
 - Set `use_openai_response_api` to `true` for models that must call Azure's `/responses` endpoint (for example O3 deployments). Leave it unset for standard chat completions.
 

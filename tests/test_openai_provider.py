@@ -51,6 +51,8 @@ class TestOpenAIProvider:
         assert provider.validate_model_name("gpt-5") is True
         assert provider.validate_model_name("gpt-5-mini") is True
         assert provider.validate_model_name("gpt-5.2") is True
+        assert provider.validate_model_name("gpt-5.4") is True
+        assert provider.validate_model_name("gpt-5.3-codex") is True
         assert provider.validate_model_name("gpt-5.1-codex") is True
         assert provider.validate_model_name("gpt-5.1-codex-mini") is True
 
@@ -63,6 +65,8 @@ class TestOpenAIProvider:
         assert provider.validate_model_name("gpt5-mini") is True
         assert provider.validate_model_name("gpt5mini") is True
         assert provider.validate_model_name("gpt5.2") is True
+        assert provider.validate_model_name("gpt5.4") is True
+        assert provider.validate_model_name("gpt5.3-codex") is True
         assert provider.validate_model_name("gpt5.1") is False
         assert provider.validate_model_name("gpt5.1-codex") is True
         assert provider.validate_model_name("codex-mini") is True
@@ -85,6 +89,8 @@ class TestOpenAIProvider:
         assert provider._resolve_model_name("gpt5-mini") == "gpt-5-mini"
         assert provider._resolve_model_name("gpt5mini") == "gpt-5-mini"
         assert provider._resolve_model_name("gpt5.2") == "gpt-5.2"
+        assert provider._resolve_model_name("gpt5.4") == "gpt-5.4"
+        assert provider._resolve_model_name("gpt5.3-codex") == "gpt-5.3-codex"
         assert provider._resolve_model_name("gpt5.1") == "gpt5.1"
         assert provider._resolve_model_name("gpt5.1-codex") == "gpt-5.1-codex"
         assert provider._resolve_model_name("codex-mini") == "gpt-5.1-codex-mini"
@@ -98,6 +104,8 @@ class TestOpenAIProvider:
         assert provider._resolve_model_name("gpt-5") == "gpt-5"
         assert provider._resolve_model_name("gpt-5-mini") == "gpt-5-mini"
         assert provider._resolve_model_name("gpt-5.2") == "gpt-5.2"
+        assert provider._resolve_model_name("gpt-5.4") == "gpt-5.4"
+        assert provider._resolve_model_name("gpt-5.3-codex") == "gpt-5.3-codex"
         assert provider._resolve_model_name("gpt-5.1") == "gpt-5.1"
         assert provider._resolve_model_name("gpt-5.1-codex") == "gpt-5.1-codex"
         assert provider._resolve_model_name("gpt-5.1-codex-mini") == "gpt-5.1-codex-mini"
@@ -170,6 +178,27 @@ class TestOpenAIProvider:
         assert capabilities.supports_streaming is True
         assert capabilities.supports_function_calling is True
         assert capabilities.supports_json_mode is True
+        assert capabilities.allow_code_generation is True
+
+    def test_get_capabilities_gpt54(self):
+        """Test GPT-5.4 capabilities reflect expanded metadata."""
+        provider = OpenAIModelProvider("test-key")
+
+        capabilities = provider.get_capabilities("gpt-5.4")
+        assert capabilities.model_name == "gpt-5.4"
+        assert capabilities.context_window == 1_050_000
+        assert capabilities.max_output_tokens == 128_000
+        assert capabilities.supports_streaming is True
+        assert capabilities.allow_code_generation is True
+
+    def test_get_capabilities_gpt53_codex(self):
+        """Test GPT-5.3 Codex defaults to Responses API metadata."""
+        provider = OpenAIModelProvider("test-key")
+
+        capabilities = provider.get_capabilities("gpt-5.3-codex")
+        assert capabilities.model_name == "gpt-5.3-codex"
+        assert capabilities.use_openai_response_api is True
+        assert capabilities.supports_streaming is False
         assert capabilities.allow_code_generation is True
 
     def test_get_capabilities_gpt51_codex(self):

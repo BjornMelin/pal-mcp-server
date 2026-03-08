@@ -73,7 +73,7 @@ CUSTOM_MODEL_NAME=llama3.2                          # Default model
 
 **Default Model Selection:**
 ```env
-# Options: 'auto', 'pro', 'flash', 'gpt5.2', 'gpt5.1-codex', 'gpt5.1-codex-mini', 'o3', 'o3-mini', 'o4-mini', etc.
+# Options: 'auto', 'pro', 'flash', 'gpt5.4', 'gpt5.3-codex', 'gpt5.2', 'gpt5.1-codex', 'gpt5.1-codex-mini', 'o3', 'o3-mini', 'o4-mini', etc.
 DEFAULT_MODEL=auto  # Claude picks best model for each task (recommended)
 ```
 
@@ -91,13 +91,13 @@ DEFAULT_MODEL=auto  # Claude picks best model for each task (recommended)
 
   | Provider | Canonical Models | Notable Aliases |
   |----------|-----------------|-----------------|
-  | OpenAI | `gpt-5.2`, `gpt-5`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5.2-pro`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-codex`, `gpt-4.1`, `o3`, `o3-mini`, `o3-pro`, `o4-mini` | `gpt5.2`, `gpt-5.2`, `5.2`, `gpt5` (`gpt-5`), `gpt5.1-codex`, `codex-5.1`, `codex-mini`, `gpt5pro`, `mini`, `nano`, `codex`, `o3mini`, `o3pro`, `o4mini` |
+  | OpenAI | `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.2`, `gpt-5`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5.2-pro`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-codex`, `gpt-4.1`, `o3`, `o3-mini`, `o3-pro`, `o4-mini` | `gpt5.4`, `5.4`, `gpt5.3-codex`, `codex-5.3`, `gpt5.2`, `gpt-5.2`, `5.2`, `gpt5` (`gpt-5`), `gpt5.1-codex`, `codex-5.1`, `codex-mini`, `gpt5pro`, `mini`, `nano`, `codex`, `o3mini`, `o3pro`, `o4mini` |
   | Gemini | `gemini-3.1-pro-preview`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-2.0-flash-lite` | `pro` (`gemini-3.1-pro-preview`), `gemini-pro-2.5` (`gemini-2.5-pro`), `flash`, `flash2.5`, `flash-2.0`, `flashlite` |
   | X.AI | `grok-4`, `grok-4.1-fast` | `grok`, `grok4`, `grok-4.1-fast-reasoning` |
   | OpenRouter | See `conf/openrouter_models.json` for the continually evolving catalogue | e.g., `opus`, `sonnet`, `flash`, `pro`, `mistral` |
   | Custom | User-managed entries such as `llama3.2` | Define your own aliases per entry |
 
-  Latest OpenAI entries (`gpt-5.2`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5.2-pro`) expose 400K-token contexts with large outputs, reasoning-token support, and multimodal inputs. `gpt-5.1-codex` and `gpt-5.2-pro` are Responses-only with streaming disabled, while the base `gpt-5.2` and Codex mini support streaming along with full code-generation flags. Update your manifests if you run custom deployments so these capability bits stay accurate.
+  Latest OpenAI entries (`gpt-5.4`, `gpt-5.3-codex`, `gpt-5.2`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`, `gpt-5.2-pro`) expose large context windows, reasoning-token support, and multimodal inputs. Codex/Pro entries (`gpt-5.3-codex`, `gpt-5.1-codex`, `gpt-5.2-pro`) are configured for Responses API routing, while base GPT-5 entries keep streaming enabled with full code-generation flags where supported.
 
   > **Tip:** Copy the JSON file you need, customise it, and point the corresponding `*_MODELS_CONFIG_PATH` environment variable to your version. This lets you enable or disable capabilities (JSON mode, function calling, temperature support, code generation) without editing Python.
 
@@ -253,6 +253,7 @@ MODEL_CATALOG_CACHE_PATH=/absolute/path/to/model_catalog_cache.json
 
 - The runtime catalog path is intentionally simple: static seeds + local cache + provider discovery.
 - Set `MODEL_CATALOG_ENABLE_CACHE=false` to disable both cache reads and cache writes.
+- Cache snapshots include a static-manifest fingerprint; fingerprinted caches are invalidated when `conf/*.json` manifests change, while legacy caches (without fingerprint) remain readable for upgrade compatibility.
 - Unknown newly discovered models are marked as quarantined and excluded from auto-mode fallback until curated/ranked.
 - Explicit model requests can still route through generic OpenRouter/Vercel provider/model IDs when supported.
 

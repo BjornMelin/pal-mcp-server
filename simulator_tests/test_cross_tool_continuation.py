@@ -62,11 +62,12 @@ class CrossToolContinuationTest(ConversationBaseTest):
             self.logger.info("  1: Testing chat -> thinkdeep -> codereview")
 
             # Start with chat
-            chat_response, chat_id = self.call_mcp_tool(
+            chat_response, chat_id = self.call_mcp_tool_direct(
                 "chat",
                 {
                     "prompt": "Please use low thinking mode. Look at this Python code and tell me what you think about it",
                     "absolute_file_paths": [self.test_files["python"]],
+                    "working_directory_absolute_path": self.test_dir,
                     "model": "flash",
                 },
             )
@@ -76,7 +77,7 @@ class CrossToolContinuationTest(ConversationBaseTest):
                 return False
 
             # Continue with thinkdeep
-            thinkdeep_response, _ = self.call_mcp_tool(
+            thinkdeep_response, _ = self.call_mcp_tool_direct(
                 "thinkdeep",
                 {
                     "step": "Think deeply about potential performance issues in this code. Please use low thinking mode.",
@@ -95,7 +96,7 @@ class CrossToolContinuationTest(ConversationBaseTest):
                 return False
 
             # Continue with codereview
-            codereview_response, _ = self.call_mcp_tool(
+            codereview_response, _ = self.call_mcp_tool_direct(
                 "codereview",
                 {
                     "step": "Building on our previous analysis, provide a comprehensive code review",
@@ -126,7 +127,7 @@ class CrossToolContinuationTest(ConversationBaseTest):
             self.logger.info("  2: Testing analyze -> debug -> thinkdeep")
 
             # Start with analyze
-            analyze_response, analyze_id = self.call_mcp_tool(
+            analyze_response, analyze_id = self.call_mcp_tool_direct(
                 "analyze",
                 {
                     "step": "Analyze this code for quality and performance issues",
@@ -144,7 +145,7 @@ class CrossToolContinuationTest(ConversationBaseTest):
                 return False
 
             # Continue with debug
-            debug_response, _ = self.call_mcp_tool(
+            debug_response, _ = self.call_mcp_tool_direct(
                 "debug",
                 {
                     "step": "Based on our analysis, help debug the performance issue in fibonacci",
@@ -163,7 +164,7 @@ class CrossToolContinuationTest(ConversationBaseTest):
                 return False
 
             # Continue with thinkdeep
-            final_response, _ = self.call_mcp_tool(
+            final_response, _ = self.call_mcp_tool_direct(
                 "thinkdeep",
                 {
                     "step": "Think deeply about the architectural implications of the issues we've found. Please use low thinking mode.",
@@ -194,11 +195,12 @@ class CrossToolContinuationTest(ConversationBaseTest):
             self.logger.info("  3: Testing multi-file cross-tool continuation")
 
             # Start with both files
-            multi_response, multi_id = self.call_mcp_tool(
+            multi_response, multi_id = self.call_mcp_tool_direct(
                 "chat",
                 {
                     "prompt": "Please use low thinking mode. Analyze both the Python code and configuration file",
                     "absolute_file_paths": [self.test_files["python"], self.test_files["config"]],
+                    "working_directory_absolute_path": self.test_dir,
                     "model": "flash",
                 },
             )
@@ -208,7 +210,7 @@ class CrossToolContinuationTest(ConversationBaseTest):
                 return False
 
             # Switch to codereview with same files (should use conversation history)
-            multi_review, _ = self.call_mcp_tool(
+            multi_review, _ = self.call_mcp_tool_direct(
                 "codereview",
                 {
                     "step": "Review both files in the context of our previous discussion",

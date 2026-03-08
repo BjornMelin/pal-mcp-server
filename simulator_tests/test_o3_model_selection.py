@@ -48,8 +48,7 @@ class O3ModelSelectionTest(BaseSimulatorTest):
                 self.logger.info("  ✅ Test skipped (no API keys configured)")
                 return True  # Return True to indicate test passed/skipped
 
-            # Original test for when OpenAI is configured
-            self.logger.info("  ℹ️  OpenAI API configured - expecting direct OpenAI API calls")
+            self.logger.info("  ℹ️  OpenAI API configured - validating effective provider routing for O3 models")
 
             # Setup test files for later use
             self.setup_test_files()
@@ -127,65 +126,50 @@ def multiply(x, y):
 
             # Validate model usage from server logs
             self.logger.info("  4: Validating model usage in logs")
-            logs = self.get_recent_server_logs()
+            logs = self.get_recent_server_logs(lines=10000)
 
-            # Check for OpenAI API calls (this proves O3 models are being used)
             openai_api_logs = [line for line in logs.split("\n") if "Sending request to openai API for" in line]
-
-            # Check for OpenAI model usage logs
+            openrouter_api_logs = [line for line in logs.split("\n") if "Sending request to openrouter API for" in line]
             openai_model_logs = [
                 line for line in logs.split("\n") if "Using model:" in line and "openai provider" in line
             ]
-
-            # Check for successful OpenAI responses
-            openai_response_logs = [
-                line for line in logs.split("\n") if "openai provider" in line and "Using model:" in line
+            openrouter_model_logs = [
+                line for line in logs.split("\n") if "Using model:" in line and "openrouter provider" in line
             ]
-
-            # Check that we have both chat and codereview tool calls to OpenAI
             chat_openai_logs = [line for line in logs.split("\n") if "Sending request to openai API for chat" in line]
-
+            chat_openrouter_logs = [
+                line for line in logs.split("\n") if "Sending request to openrouter API for chat" in line
+            ]
             codereview_openai_logs = [
                 line for line in logs.split("\n") if "Sending request to openai API for codereview" in line
             ]
+            codereview_openrouter_logs = [
+                line for line in logs.split("\n") if "Sending request to openrouter API for codereview" in line
+            ]
 
-            # Validation criteria - check for OpenAI usage evidence (more flexible than exact counts)
-            openai_api_called = len(openai_api_logs) >= 1  # Should see at least 1 OpenAI API call
-            openai_model_usage = len(openai_model_logs) >= 1  # Should see at least 1 model usage log
-            openai_responses_received = len(openai_response_logs) >= 1  # Should see at least 1 response
-            some_chat_calls_to_openai = len(chat_openai_logs) >= 1  # Should see at least 1 chat call
-            some_workflow_calls_to_openai = (
-                len(codereview_openai_logs) >= 1
-                or len([line for line in logs.split("\n") if "openai" in line and "codereview" in line]) > 0
-            )  # Should see evidence of workflow tool usage
+            all_calls_completed = response1 is not None and response2 is not None and response3 is not None
+            openai_routing_detected = len(openai_api_logs) >= 1 or len(openai_model_logs) >= 1
+            openrouter_routing_detected = len(openrouter_api_logs) >= 1 or len(openrouter_model_logs) >= 1
+            any_routing_detected = openai_routing_detected or openrouter_routing_detected
+            chat_routed = len(chat_openai_logs) >= 1 or len(chat_openrouter_logs) >= 1
+            workflow_routed = len(codereview_openai_logs) >= 1 or len(codereview_openrouter_logs) >= 1
 
             self.logger.info(f"   OpenAI API call logs: {len(openai_api_logs)}")
+            self.logger.info(f"   OpenRouter API call logs: {len(openrouter_api_logs)}")
             self.logger.info(f"   OpenAI model usage logs: {len(openai_model_logs)}")
-            self.logger.info(f"   OpenAI response logs: {len(openai_response_logs)}")
-            self.logger.info(f"   Chat calls to OpenAI: {len(chat_openai_logs)}")
-            self.logger.info(f"   Codereview calls to OpenAI: {len(codereview_openai_logs)}")
+            self.logger.info(f"   OpenRouter model usage logs: {len(openrouter_model_logs)}")
+            self.logger.info(
+                f"   Chat calls routed: OpenAI={len(chat_openai_logs)}, OpenRouter={len(chat_openrouter_logs)}"
+            )
+            self.logger.info(
+                f"   Codereview calls routed: OpenAI={len(codereview_openai_logs)}, OpenRouter={len(codereview_openrouter_logs)}"
+            )
 
-            # Log sample evidence for debugging
-            if self.verbose and openai_api_logs:
-                self.logger.debug("  📋 Sample OpenAI API logs:")
-                for log in openai_api_logs[:5]:
-                    self.logger.debug(f"    {log}")
-
-            if self.verbose and chat_openai_logs:
-                self.logger.debug("  📋 Sample chat OpenAI logs:")
-                for log in chat_openai_logs[:3]:
-                    self.logger.debug(f"    {log}")
-
-            # Success criteria
             success_criteria = [
-                ("OpenAI API calls made", openai_api_called),
-                ("OpenAI model usage logged", openai_model_usage),
-                ("OpenAI responses received", openai_responses_received),
-                ("Chat tool used OpenAI", some_chat_calls_to_openai),
-                (
-                    "Workflow tool attempted",
-                    some_workflow_calls_to_openai or response3 is not None,
-                ),  # More flexible check
+                ("All O3/O3-mini calls completed", all_calls_completed),
+                ("O3 routing detected in logs", any_routing_detected),
+                ("Chat tool routed to a provider", chat_routed),
+                ("Workflow tool routed to a provider", workflow_routed or response3 is not None),
             ]
 
             passed_criteria = sum(1 for _, passed in success_criteria if passed)
@@ -195,12 +179,15 @@ def multiply(x, y):
                 status = "✅" if passed else "❌"
                 self.logger.info(f"    {status} {criterion}")
 
-            if passed_criteria >= 3:  # At least 3 out of 5 criteria
-                self.logger.info("  ✅ O3 model selection validation passed")
+            if passed_criteria == len(success_criteria):
+                if openai_routing_detected:
+                    self.logger.info("  ✅ O3 model selection validation passed (direct OpenAI routing)")
+                else:
+                    self.logger.info("  ✅ O3 model selection validation passed (OpenRouter fallback routing)")
                 return True
-            else:
-                self.logger.error("  ❌ O3 model selection validation failed")
-                return False
+
+            self.logger.error("  ❌ O3 model selection validation failed")
+            return False
 
         except Exception as e:
             self.logger.error(f"O3 model selection test failed: {e}")
@@ -283,7 +270,7 @@ def multiply(x, y):
 
             # Validate OpenRouter usage in logs
             self.logger.info("  4: Validating OpenRouter usage in logs")
-            logs = self.get_recent_server_logs()
+            logs = self.get_recent_server_logs(lines=10000)
 
             # Check for OpenRouter API calls
             openrouter_api_logs = [

@@ -127,6 +127,11 @@ class Calculator:
     def call_mcp_tool(self, tool_name: str, params: dict) -> tuple[Optional[str], Optional[str]]:
         """Call an MCP tool via standalone server"""
         try:
+            tool_params = dict(params)
+            if tool_name == "chat" and "working_directory_absolute_path" not in tool_params:
+                working_dir = self.test_dir if self.test_dir and os.path.isdir(self.test_dir) else os.getcwd()
+                tool_params["working_directory_absolute_path"] = os.path.abspath(working_dir)
+
             # Prepare the MCP initialization and tool call sequence
             init_request = {
                 "jsonrpc": "2.0",
@@ -147,7 +152,7 @@ class Calculator:
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "tools/call",
-                "params": {"name": tool_name, "arguments": params},
+                "params": {"name": tool_name, "arguments": tool_params},
             }  # Combine all messages
             messages = [
                 json.dumps(init_request, ensure_ascii=False),
@@ -163,6 +168,9 @@ class Calculator:
 
             self.logger.debug(f"Calling MCP tool {tool_name} with proper initialization")
 
+            subprocess_env = os.environ.copy()
+            subprocess_env["DISABLED_TOOLS"] = ""
+
             # Execute the command with proper handling for async responses
             # For consensus tool and other long-running tools, we need to ensure
             # the subprocess doesn't close prematurely
@@ -173,6 +181,7 @@ class Calculator:
                 capture_output=True,
                 timeout=3600,  # 1 hour timeout
                 check=False,  # Don't raise on non-zero exit code
+                env=subprocess_env,
             )
 
             if result.returncode != 0:

@@ -364,10 +364,13 @@ class CommunicationSimulator:
         self.logger.info("PAL MCP COMMUNICATION SIMULATOR - TEST RESULTS SUMMARY")
         self.logger.info("=" * 70)
 
-        passed_count = sum(1 for result in self.test_results.values() if result)
-        total_count = len(self.test_results)
+        summary_test_names = self.selected_tests if self.selected_tests else list(self.test_results.keys())
+        summary_results = {name: self.test_results.get(name, False) for name in summary_test_names}
 
-        for test_name, result in self.test_results.items():
+        passed_count = sum(1 for result in summary_results.values() if result)
+        total_count = len(summary_results)
+
+        for test_name, result in summary_results.items():
             status = "PASS" if result else "FAIL"
             # Get test description
             temp_instance = self.test_registry[test_name](verbose=False)

@@ -190,6 +190,69 @@ def test_startup_without_network_uses_cache_and_static(tmp_path, monkeypatch) ->
     assert status["merged_models"] > 0
 
 
+def test_refresh_uses_cache_when_static_manifest_fingerprint_matches(tmp_path, monkeypatch) -> None:
+    static_manifest_fingerprint = catalog_service._compute_static_manifest_fingerprint(
+        catalog_service._load_static_catalog()
+    )
+    cache_path = tmp_path / "cache.json"
+    cache_payload = {
+        "saved_at": "2026-02-21T00:00:00+00:00",
+        "static_manifest_fingerprint": static_manifest_fingerprint,
+        "providers": {
+            "openai": [
+                {
+                    "model_name": "gpt-cache-only",
+                    "friendly_name": "OpenAI (gpt-cache-only)",
+                    "intelligence_score": 7,
+                    "description": "cached",
+                }
+            ]
+        },
+    }
+    cache_path.write_text(json.dumps(cache_payload), encoding="utf-8")
+
+    monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_DISCOVERY", "false")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_CACHE", "true")
+    monkeypatch.setenv("MODEL_CATALOG_CACHE_PATH", str(cache_path))
+    monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(tmp_path / "generated"))
+
+    status = refresh_model_catalog_once("test-matching-cache-fingerprint")
+
+    assert status["last_refresh_success"] is True
+    assert status["cache_loaded"] is True
+
+
+def test_refresh_ignores_cache_when_static_manifest_fingerprint_mismatches(tmp_path, monkeypatch) -> None:
+    cache_path = tmp_path / "cache.json"
+    cache_payload = {
+        "saved_at": "2026-02-21T00:00:00+00:00",
+        "static_manifest_fingerprint": "stale-fingerprint",
+        "providers": {
+            "openai": [
+                {
+                    "model_name": "gpt-cache-only",
+                    "friendly_name": "OpenAI (gpt-cache-only)",
+                    "intelligence_score": 7,
+                    "description": "cached",
+                }
+            ]
+        },
+    }
+    cache_path.write_text(json.dumps(cache_payload), encoding="utf-8")
+
+    monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_DISCOVERY", "false")
+    monkeypatch.setenv("MODEL_CATALOG_ENABLE_CACHE", "true")
+    monkeypatch.setenv("MODEL_CATALOG_CACHE_PATH", str(cache_path))
+    monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(tmp_path / "generated"))
+
+    status = refresh_model_catalog_once("test-stale-cache-fingerprint")
+
+    assert status["last_refresh_success"] is True
+    assert status["cache_loaded"] is False
+
+
 def test_discovery_api_outage_does_not_break_refresh(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("MODEL_CATALOG_ENABLED", "true")
     monkeypatch.setenv("MODEL_CATALOG_ENABLE_DISCOVERY", "true")

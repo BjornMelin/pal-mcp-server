@@ -305,10 +305,74 @@ def merge_catalogs(
         for entry in entries:
             upsert(provider_name, entry, replace=True, source="static")
 
-    # 2) cache overlay
+    def enrich_from_cache(existing: dict[str, Any], cached: dict[str, Any]) -> None:
+        # Fill-only enrichment fields; never override curated/static values when already present.
+        numeric_fields = ["context_window", "max_output_tokens", "max_thinking_tokens"]
+        bool_fields = [
+            "supports_images",
+            "supports_function_calling",
+            "supports_json_mode",
+            "supports_temperature",
+        ]
+
+        for key in numeric_fields:
+            if key not in cached:
+                continue
+            try:
+                cached_value = int(cached[key])
+            except (TypeError, ValueError):
+                continue
+            if cached_value <= 0:
+                continue
+            existing_value = existing.get(key)
+            if not isinstance(existing_value, int) or existing_value <= 0:
+                existing[key] = cached_value
+
+        if "max_image_size_mb" in cached:
+            try:
+                cached_max_image = float(cached["max_image_size_mb"])
+            except (TypeError, ValueError):
+                cached_max_image = 0.0
+            existing_max_image = existing.get("max_image_size_mb")
+            if cached_max_image > 0 and (not isinstance(existing_max_image, (int, float)) or existing_max_image <= 0):
+                existing["max_image_size_mb"] = cached_max_image
+
+        for key in bool_fields:
+            if key not in cached:
+                continue
+            cached_value = bool(cached[key])
+            existing_value = existing.get(key)
+            if existing_value in (None, False, 0, "") and cached_value:
+                existing[key] = cached_value
+
+        cached_release = cached.get("release_metadata")
+        if isinstance(cached_release, dict) and cached_release:
+            existing_release = existing.get("release_metadata")
+            if not isinstance(existing_release, dict):
+                existing_release = {}
+                existing["release_metadata"] = existing_release
+            for meta_key, meta_value in cached_release.items():
+                if meta_key not in existing_release and isinstance(meta_value, str) and meta_value.strip():
+                    existing_release[meta_key] = meta_value
+
+        existing["catalog_source"] = _merge_source(str(existing.get("catalog_source") or ""), "cache")
+
+    # 2) cache overlay (authoritative for cache-only models, enrichment-only for static models)
     for provider_name, entries in cache_by_provider.items():
         for entry in entries:
-            upsert(provider_name, entry, replace=True, source="cache")
+            normalized = sanitize_capability_entry(entry, provider_name, source="cache")
+            if not normalized:
+                continue
+
+            bucket = merged.setdefault(provider_name, {})
+            model_key = normalized["model_name"].lower()
+            existing = bucket.get(model_key)
+
+            if existing is None:
+                upsert(provider_name, entry, replace=False, source="cache")
+                continue
+
+            enrich_from_cache(existing, normalized)
 
     # 3) provider discovery (enrich existing or quarantine unknown)
     for entry in discovered_entries:
