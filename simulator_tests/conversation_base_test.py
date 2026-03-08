@@ -78,6 +78,7 @@ class ConversationBaseTest(BaseSimulatorTest):
     def _import_tools(self):
         """Import tools from server.py for direct calling"""
         try:
+            import importlib
             import os
             import sys
 
@@ -86,12 +87,16 @@ class ConversationBaseTest(BaseSimulatorTest):
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
 
+            # Simulator conversation tests require full tool availability regardless of user shell defaults.
+            os.environ["DISABLED_TOOLS"] = ""
+
             # Import and configure providers first (this is what main() does)
-            from server import TOOLS, configure_providers
+            import server as server_module
 
-            configure_providers()
+            server_module = importlib.reload(server_module)
+            server_module.configure_providers()
 
-            self._tools = TOOLS
+            self._tools = server_module.TOOLS
             self.logger.debug(f"Imported {len(self._tools)} tools for in-process testing")
         except ImportError as e:
             raise RuntimeError(f"Could not import tools from server.py: {e}")

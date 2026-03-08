@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import sys
@@ -175,10 +176,40 @@ def _load_static_catalog() -> dict[str, list[dict[str, Any]]]:
     return manifests
 
 
-def _load_cached_catalog(cache_path: str) -> dict[str, list[dict[str, Any]]]:
+def _compute_static_manifest_fingerprint(static_catalog: dict[str, list[dict[str, Any]]]) -> str:
+    normalized: dict[str, list[dict[str, Any]]] = {}
+    for provider_name, entries in static_catalog.items():
+        normalized[str(provider_name)] = sorted(
+            [item for item in entries if isinstance(item, dict)],
+            key=lambda item: str(item.get("model_name", "")).lower(),
+        )
+
+    payload = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _load_cached_catalog(
+    cache_path: str,
+    *,
+    expected_static_fingerprint: str | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     payload = load_cache(cache_path)
     if not payload:
         return {}
+
+    if expected_static_fingerprint:
+        cached_fingerprint = str(payload.get("static_manifest_fingerprint") or "").strip()
+        # Backwards compatibility: caches written before fingerprint support remain valid.
+        # Only enforce strict invalidation when a fingerprint exists and mismatches.
+        if cached_fingerprint and cached_fingerprint != expected_static_fingerprint:
+            logger.warning(
+                "Invalidating model catalog cache at %s due to static manifest fingerprint mismatch "
+                "(expected=%s, cached=%s).",
+                cache_path,
+                expected_static_fingerprint,
+                cached_fingerprint,
+            )
+            return {}
 
     providers = payload.get("providers")
     if not isinstance(providers, dict):
@@ -311,7 +342,15 @@ def refresh_model_catalog_once(
                 logger.warning(warning)
 
             static_catalog = _load_static_catalog()
-            cache_catalog = _load_cached_catalog(cache_path) if cache_enabled else {}
+            static_manifest_fingerprint = _compute_static_manifest_fingerprint(static_catalog)
+            cache_catalog = (
+                _load_cached_catalog(
+                    cache_path,
+                    expected_static_fingerprint=static_manifest_fingerprint,
+                )
+                if cache_enabled
+                else {}
+            )
             status.cache_loaded = bool(cache_catalog)
             source_mode = "cache+static" if cache_catalog else "static"
 
@@ -385,6 +424,7 @@ def refresh_model_catalog_once(
                     {
                         "saved_at": _now_utc(),
                         "source_mode": source_mode,
+                        "static_manifest_fingerprint": static_manifest_fingerprint,
                         "providers": merged,
                     },
                 )

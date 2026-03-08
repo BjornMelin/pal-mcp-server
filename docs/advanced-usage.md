@@ -42,6 +42,8 @@ Regardless of your default configuration, you can specify models per request:
 | **`o3-mini`** | OpenAI | 200K tokens | Balanced speed/quality | Moderate complexity tasks |
 | **`o4-mini`** | OpenAI | 200K tokens | Latest reasoning model | Optimized for shorter contexts |
 | **`gpt4.1`** | OpenAI | 1M tokens | Latest GPT-4 with extended context | Large codebase analysis, comprehensive reviews |
+| **`gpt5.4`** (GPT-5.4) | OpenAI | 1.05M tokens | Latest GPT-5 flagship with larger context | Long-context analysis, high-end reasoning and coding |
+| **`gpt5.3-codex`** (GPT-5.3 Codex) | OpenAI | 400K tokens | New Codex-series model (Responses API) | Advanced coding tasks, structured implementation work |
 | **`gpt5.2`** (GPT-5.2) | OpenAI | 400K tokens | Flagship reasoning model with configurable thinking effort | Complex problems, balanced agent/coding flows |
 | **`gpt5.1-codex`** (GPT-5.1 Codex) | OpenAI | 400K tokens | Agentic coding specialization (Responses API) | Advanced coding tasks, structured code generation |
 | **`gpt5.1-codex-mini`** (GPT-5.1 Codex mini) | OpenAI | 400K tokens | Cost-efficient Codex variant with streaming | Balanced coding tasks, cost-conscious development |
@@ -65,7 +67,9 @@ cloud models (expensive/powerful) AND local models (free/private) in the same co
   - **Flash Lite 2.0**: Text-only lightweight model (no thinking support)
 - **O3/O4 Models**: Excellent reasoning, systematic analysis, 200K context
 - **GPT-4.1**: Extended context window (1M tokens), general capabilities
-- **GPT-5.2 Series**: Latest flagship reasoning models, 400K context
+- **GPT-5.4 / GPT-5.3 / GPT-5.2 Series**: Latest OpenAI reasoning and coding models
+  - **GPT-5.4**: Largest context in current OpenAI manifest (1.05M)
+  - **GPT-5.3 Codex**: New Codex-series coding specialization (Responses API, non-streaming)
   - **GPT-5.2**: Flagship model with configurable thinking effort and vision
   - **GPT-5.1 Codex**: Agentic coding specialization (Responses API, non-streaming)
   - **GPT-5.1 Codex mini**: Cost-efficient Codex variant with streaming support

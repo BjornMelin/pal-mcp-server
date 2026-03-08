@@ -71,7 +71,7 @@ def divide(x, y):
                 "model": "flash",
             }
 
-            response1, continuation_id = self.call_mcp_tool("precommit", precommit_params)
+            response1, continuation_id = self.call_mcp_tool_direct("precommit", precommit_params)
             if not response1:
                 self.logger.error("  ❌ Step 1: precommit tool failed")
                 return False
@@ -134,7 +134,7 @@ def subtract(a, b):
                 "model": "flash",
             }
 
-            response3, _ = self.call_mcp_tool("precommit", continue_params)
+            response3, _ = self.call_mcp_tool_direct("precommit", continue_params)
             if not response3:
                 self.logger.error("  ❌ Step 3: precommit continuation failed")
                 return False

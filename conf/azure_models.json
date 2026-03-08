@@ -42,6 +42,47 @@
       "use_openai_response_api": false,
       "description": "GPT-4 (128K context, 16K output)",
       "intelligence_score": 10
+    },
+    {
+      "model_name": "gpt-5.4",
+      "deployment": "prod-gpt-5-4",
+      "aliases": [
+        "gpt54-azure"
+      ],
+      "context_window": 1050000,
+      "max_output_tokens": 128000,
+      "supports_extended_thinking": true,
+      "supports_json_mode": true,
+      "supports_function_calling": true,
+      "supports_images": true,
+      "max_image_size_mb": 20.0,
+      "supports_temperature": true,
+      "temperature_constraint": "fixed",
+      "default_reasoning_effort": "medium",
+      "use_openai_response_api": false,
+      "description": "Azure deployment template for GPT-5.4",
+      "intelligence_score": 19
+    },
+    {
+      "model_name": "gpt-5.3-codex",
+      "deployment": "prod-gpt-5-3-codex",
+      "aliases": [
+        "gpt53-codex-azure",
+        "codex53-azure"
+      ],
+      "context_window": 400000,
+      "max_output_tokens": 128000,
+      "supports_extended_thinking": true,
+      "supports_json_mode": true,
+      "supports_function_calling": true,
+      "supports_images": true,
+      "max_image_size_mb": 20.0,
+      "supports_temperature": true,
+      "temperature_constraint": "fixed",
+      "default_reasoning_effort": "high",
+      "use_openai_response_api": true,
+      "description": "Azure deployment template for GPT-5.3 Codex",
+      "intelligence_score": 19
     }
   ],
   "models": []
