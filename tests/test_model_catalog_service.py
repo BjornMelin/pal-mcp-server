@@ -223,7 +223,7 @@ def test_refresh_uses_cache_when_static_manifest_fingerprint_matches(tmp_path, m
     assert status["cache_loaded"] is True
 
 
-def test_refresh_ignores_cache_when_static_manifest_fingerprint_mismatches(tmp_path, monkeypatch) -> None:
+def test_refresh_ignores_cache_when_static_manifest_fingerprint_mismatches(tmp_path, monkeypatch, caplog) -> None:
     cache_path = tmp_path / "cache.json"
     cache_payload = {
         "saved_at": "2026-02-21T00:00:00+00:00",
@@ -247,10 +247,13 @@ def test_refresh_ignores_cache_when_static_manifest_fingerprint_mismatches(tmp_p
     monkeypatch.setenv("MODEL_CATALOG_CACHE_PATH", str(cache_path))
     monkeypatch.setenv("MODEL_CATALOG_GENERATED_DIR", str(tmp_path / "generated"))
 
+    caplog.set_level("WARNING")
     status = refresh_model_catalog_once("test-stale-cache-fingerprint")
 
     assert status["last_refresh_success"] is True
     assert status["cache_loaded"] is False
+    assert "Invalidating model catalog cache" in caplog.text
+    assert str(cache_path) in caplog.text
 
 
 def test_discovery_api_outage_does_not_break_refresh(tmp_path, monkeypatch) -> None:

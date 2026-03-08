@@ -108,6 +108,38 @@ def test_merge_catalogs_cache_enriches_existing_static_model_without_overrides()
     assert gpt5["supports_function_calling"] is True
 
 
+def test_merge_catalogs_cache_does_not_override_explicit_false_booleans() -> None:
+    merged = merge_catalogs(
+        static_by_provider={
+            "openai": [
+                {
+                    "model_name": "o3",
+                    "friendly_name": "OpenAI O3",
+                    "intelligence_score": 9,
+                    "description": "static",
+                    "supports_temperature": False,
+                }
+            ]
+        },
+        cache_by_provider={
+            "openai": [
+                {
+                    "model_name": "o3",
+                    "friendly_name": "OpenAI O3",
+                    "intelligence_score": 9,
+                    "description": "cache",
+                    "supports_temperature": True,
+                }
+            ]
+        },
+        discovered_entries=[],
+        quarantine_enabled=True,
+    )
+
+    model = _find_model(merged["openai"], "o3")
+    assert model["supports_temperature"] is False
+
+
 def test_merge_catalogs_without_quarantine_keeps_new_models_active() -> None:
     merged = merge_catalogs(
         static_by_provider={},
